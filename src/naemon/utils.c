@@ -879,7 +879,7 @@ int generate_check_stats(void)
 			}
 			/* otherwise use weighted % of this and last bucket */
 			else {
-				bucket_value = (int)(ceil(this_bucket_value * this_bucket_weight) + floor((double)last_bucket_value * last_bucket_weight));
+				bucket_value = (int)(ceil((double)this_bucket_value * this_bucket_weight) + floor((double)last_bucket_value * last_bucket_weight));
 			}
 
 			/* 1 minute stats */
