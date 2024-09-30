@@ -44,7 +44,7 @@ int initialize_retention_data()
 
 	/* add a retention data save event if needed */
 	if (retain_state_information == TRUE && retention_update_interval > 0)
-		schedule_event(retention_update_interval * interval_length, save_state_information_eventhandler, NULL);
+		schedule_event((time_t)retention_update_interval * interval_length, save_state_information_eventhandler, NULL);
 
 	return xrddefault_initialize_retention_data();
 }
