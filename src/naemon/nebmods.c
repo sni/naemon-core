@@ -195,9 +195,11 @@ int neb_load_module(nebmodule *mod)
 
 	/* check the module API version */
 	if (module_version_ptr == NULL || ((*module_version_ptr) != CURRENT_NEB_API_VERSION)) {
-
-		nm_log(NSLOG_RUNTIME_ERROR, "Error: Module '%s' is using an old or unspecified version of the event broker API.  Module will be unloaded.\n", mod->filename);
-
+		if (module_version_ptr == NULL) {
+			nm_log(NSLOG_RUNTIME_ERROR, "Error: Module '%s' did not specify a version of the event broker API. Module will be unloaded.\n", mod->filename);
+		} else {
+			nm_log(NSLOG_RUNTIME_ERROR, "Error: Module '%s' is using an incompatible version (v%d) of the event broker API (current version: v%d). Module will be unloaded.\n", mod->filename, *module_version_ptr, CURRENT_NEB_API_VERSION);
+		}
 		neb_unload_module(mod, NEBMODULE_FORCE_UNLOAD, NEBMODULE_ERROR_API_VERSION);
 
 		return ERROR;
@@ -634,7 +636,7 @@ neb_cb_resultset *neb_make_callbacks_full(enum NEBCallbackType callback_type, vo
 	/* make the callbacks... */
 	for (temp_callback = neb_callback_list[callback_type]; temp_callback; temp_callback = next_callback) {
 		next_callback = temp_callback->next;
-		/* get name of module reponsible for the callback */
+		/* get name of module responsible for the callback */
 		for (temp_module = neb_module_list; temp_module != NULL; temp_module = temp_module->next) {
 			if (temp_module->module_handle == temp_callback->module_handle) {
 				if (temp_module->core_module) {

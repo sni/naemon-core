@@ -14,6 +14,8 @@
 #include "defaults.h"
 #include "nm_alloc.h"
 #include "broker.h"
+#include "events.h"
+#include "commands.h"
 #include <string.h>
 
 /******************************************************************/
@@ -65,6 +67,8 @@ int xrddefault_save_state_information(void)
 	service *temp_service = NULL;
 	contact *temp_contact = NULL;
 	comment *temp_comment = NULL;
+	GHashTableIter iter;
+	gpointer comment_;
 	scheduled_downtime *temp_downtime = NULL;
 	int x = 0;
 	int fd = 0;
@@ -150,8 +154,6 @@ int xrddefault_save_state_information(void)
 	fprintf(fp, "next_comment_id=%lu\n", next_comment_id);
 	fprintf(fp, "next_downtime_id=%lu\n", next_downtime_id);
 	fprintf(fp, "next_event_id=%lu\n", next_event_id);
-	fprintf(fp, "next_problem_id=%lu\n", next_problem_id);
-	fprintf(fp, "next_notification_id=%lu\n", next_notification_id);
 	fprintf(fp, "}\n");
 
 	/* save host state information */
@@ -174,8 +176,10 @@ int xrddefault_save_state_information(void)
 		fprintf(fp, "last_hard_state=%d\n", temp_host->last_hard_state);
 		fprintf(fp, "last_event_id=%lu\n", temp_host->last_event_id);
 		fprintf(fp, "current_event_id=%lu\n", temp_host->current_event_id);
-		fprintf(fp, "current_problem_id=%lu\n", temp_host->current_problem_id);
-		fprintf(fp, "last_problem_id=%lu\n", temp_host->last_problem_id);
+		fprintf(fp, "current_problem_id=%s\n", (temp_host->current_problem_id == NULL) ? "" : temp_host->current_problem_id);
+		fprintf(fp, "last_problem_id=%s\n", (temp_host->last_problem_id == NULL) ? "" : temp_host->last_problem_id);
+		fprintf(fp, "problem_start=%lu\n", temp_host->problem_start);
+		fprintf(fp, "problem_end=%lu\n", temp_host->problem_end);
 		fprintf(fp, "plugin_output=%s\n", (temp_host->plugin_output == NULL) ? "" : temp_host->plugin_output);
 		fprintf(fp, "long_plugin_output=%s\n", (temp_host->long_plugin_output == NULL) ? "" : temp_host->long_plugin_output);
 		fprintf(fp, "performance_data=%s\n", (temp_host->perf_data == NULL) ? "" : temp_host->perf_data);
@@ -196,13 +200,14 @@ int xrddefault_save_state_information(void)
 		fprintf(fp, "notified_on_unreachable=%d\n", flag_isset(temp_host->notified_on, OPT_UNREACHABLE));
 		fprintf(fp, "last_notification=%lu\n", temp_host->last_notification);
 		fprintf(fp, "current_notification_number=%d\n", temp_host->current_notification_number);
-		fprintf(fp, "current_notification_id=%lu\n", temp_host->current_notification_id);
+		fprintf(fp, "current_notification_id=%s\n", (temp_host->current_notification_id == NULL) ? "" : temp_host->current_notification_id);
 		if (conf_host && conf_host->notifications_enabled != temp_host->notifications_enabled) {
 			fprintf(fp, "config:notifications_enabled=%d\n", conf_host->notifications_enabled);
 			fprintf(fp, "notifications_enabled=%d\n", temp_host->notifications_enabled);
 		}
 		fprintf(fp, "problem_has_been_acknowledged=%d\n", temp_host->problem_has_been_acknowledged);
 		fprintf(fp, "acknowledgement_type=%d\n", temp_host->acknowledgement_type);
+		fprintf(fp, "acknowledgement_end_time=%lu\n", temp_host->acknowledgement_end_time);
 		if (conf_host && conf_host->checks_enabled != temp_host->checks_enabled) {
 			fprintf(fp, "config:active_checks_enabled=%d\n", conf_host->checks_enabled);
 			fprintf(fp, "active_checks_enabled=%d\n", temp_host->checks_enabled);
@@ -268,8 +273,10 @@ int xrddefault_save_state_information(void)
 		fprintf(fp, "last_hard_state=%d\n", temp_service->last_hard_state);
 		fprintf(fp, "last_event_id=%lu\n", temp_service->last_event_id);
 		fprintf(fp, "current_event_id=%lu\n", temp_service->current_event_id);
-		fprintf(fp, "current_problem_id=%lu\n", temp_service->current_problem_id);
-		fprintf(fp, "last_problem_id=%lu\n", temp_service->last_problem_id);
+		fprintf(fp, "current_problem_id=%s\n", (temp_service->current_problem_id == NULL) ? "" : temp_service->current_problem_id);
+		fprintf(fp, "last_problem_id=%s\n", (temp_service->last_problem_id == NULL) ? "" : temp_service->last_problem_id);
+		fprintf(fp, "problem_start=%lu\n", temp_service->problem_start);
+		fprintf(fp, "problem_end=%lu\n", temp_service->problem_end);
 		fprintf(fp, "current_attempt=%d\n", temp_service->current_attempt);
 		fprintf(fp, "max_attempts=%d\n", temp_service->max_attempts);
 		fprintf(fp, "normal_check_interval=%f\n", temp_service->check_interval);
@@ -291,7 +298,7 @@ int xrddefault_save_state_information(void)
 		fprintf(fp, "notified_on_warning=%d\n", flag_isset(temp_service->notified_on, OPT_WARNING));
 		fprintf(fp, "notified_on_critical=%d\n", flag_isset(temp_service->notified_on, OPT_CRITICAL));
 		fprintf(fp, "current_notification_number=%d\n", temp_service->current_notification_number);
-		fprintf(fp, "current_notification_id=%lu\n", temp_service->current_notification_id);
+		fprintf(fp, "current_notification_id=%s\n", (temp_service->current_notification_id == NULL) ? "" : temp_service->current_notification_id);
 		fprintf(fp, "last_notification=%lu\n", temp_service->last_notification);
 		if (conf_svc && conf_svc->notifications_enabled != temp_service->notifications_enabled) {
 			fprintf(fp, "config:notifications_enabled=%d\n", conf_svc->notifications_enabled);
@@ -311,6 +318,7 @@ int xrddefault_save_state_information(void)
 		}
 		fprintf(fp, "problem_has_been_acknowledged=%d\n", temp_service->problem_has_been_acknowledged);
 		fprintf(fp, "acknowledgement_type=%d\n", temp_service->acknowledgement_type);
+		fprintf(fp, "acknowledgement_end_time=%lu\n", temp_service->acknowledgement_end_time);
 		if (conf_svc && conf_svc->flap_detection_enabled != temp_service->flap_detection_enabled) {
 			fprintf(fp, "config:flap_detection_enabled=%d\n", conf_svc->flap_detection_enabled);
 			fprintf(fp, "flap_detection_enabled=%d\n", temp_service->flap_detection_enabled);
@@ -374,25 +382,28 @@ int xrddefault_save_state_information(void)
 	}
 
 	/* save all comments */
-	for (temp_comment = comment_list; temp_comment != NULL; temp_comment = temp_comment->next) {
-
-		if (temp_comment->comment_type == HOST_COMMENT)
-			fprintf(fp, "hostcomment {\n");
-		else
-			fprintf(fp, "servicecomment {\n");
-		fprintf(fp, "host_name=%s\n", temp_comment->host_name);
-		if (temp_comment->comment_type == SERVICE_COMMENT)
-			fprintf(fp, "service_description=%s\n", temp_comment->service_description);
-		fprintf(fp, "entry_type=%d\n", temp_comment->entry_type);
-		fprintf(fp, "comment_id=%lu\n", temp_comment->comment_id);
-		fprintf(fp, "source=%d\n", temp_comment->source);
-		fprintf(fp, "persistent=%d\n", temp_comment->persistent);
-		fprintf(fp, "entry_time=%lu\n", temp_comment->entry_time);
-		fprintf(fp, "expires=%d\n", temp_comment->expires);
-		fprintf(fp, "expire_time=%lu\n", temp_comment->expire_time);
-		fprintf(fp, "author=%s\n", temp_comment->author);
-		fprintf(fp, "comment_data=%s\n", temp_comment->comment_data);
-		fprintf(fp, "}\n");
+	if(comment_hashtable != NULL) {
+		g_hash_table_iter_init(&iter, comment_hashtable);
+		while (g_hash_table_iter_next(&iter, NULL, &comment_)) {
+			temp_comment = comment_;
+			if (temp_comment->comment_type == HOST_COMMENT)
+				fprintf(fp, "hostcomment {\n");
+			else
+				fprintf(fp, "servicecomment {\n");
+			fprintf(fp, "host_name=%s\n", temp_comment->host_name);
+			if (temp_comment->comment_type == SERVICE_COMMENT)
+				fprintf(fp, "service_description=%s\n", temp_comment->service_description);
+			fprintf(fp, "entry_type=%d\n", temp_comment->entry_type);
+			fprintf(fp, "comment_id=%lu\n", temp_comment->comment_id);
+			fprintf(fp, "source=%d\n", temp_comment->source);
+			fprintf(fp, "persistent=%d\n", temp_comment->persistent);
+			fprintf(fp, "entry_time=%lu\n", temp_comment->entry_time);
+			fprintf(fp, "expires=%d\n", temp_comment->expires);
+			fprintf(fp, "expire_time=%lu\n", temp_comment->expire_time);
+			fprintf(fp, "author=%s\n", temp_comment->author);
+			fprintf(fp, "comment_data=%s\n", temp_comment->comment_data);
+			fprintf(fp, "}\n");
+		}
 	}
 
 	/* save all downtime */
@@ -459,8 +470,7 @@ int xrddefault_save_state_information(void)
 /******************************************************************/
 #define RETAIN_BOOL(type, obj, v, attr) \
 	do { \
-		if ((obj->modified_attributes & attr && !have.v) || (have.v && conf.v == obj->v)) { \
-			printf("Retaining boolean " #v " for " #type " (%s) (conf.v = %d; have.v = %d)\n", val, conf.v, have.v); \
+		if (obj->modified_attributes & attr && (!have.v || (have.v && conf.v == obj->v))) { \
 			pre_modify_##type##_attribute(obj, attr); \
 			obj->v = atoi(val) > 0 ? TRUE : FALSE; \
 		} \
@@ -545,7 +555,6 @@ int xrddefault_read_state_information(void)
 
 	/* Big speedup when reading retention.dat in bulk */
 	defer_downtime_sorting = 1;
-	defer_comment_sorting = 1;
 
 	/* read all lines in the retention file */
 	while (1) {
@@ -634,6 +643,23 @@ int xrddefault_read_state_information(void)
 					if (temp_host->last_hard_state_change == (time_t)0)
 						temp_host->last_hard_state_change = temp_host->last_state_change;
 
+					/* if there was an expiring ack */
+					if (temp_host->problem_has_been_acknowledged && temp_host->acknowledgement_end_time > 0) {
+
+						/* get the time */
+						time(&current_time);
+
+						/* and if the expiry time is in the future */
+						if (temp_host->acknowledgement_end_time > current_time) {
+							/* schedule the expiry event */
+							schedule_event(temp_host->acknowledgement_end_time - current_time, handle_host_acknowledgement_expire_event, (void *)temp_host);
+						} else {
+							/* otherwise unacknowledge the problem */
+							temp_host->problem_has_been_acknowledged = FALSE;
+							temp_host->acknowledgement_type = ACKNOWLEDGEMENT_NONE;
+							temp_host->acknowledgement_end_time = (time_t)0;
+						}
+					}
 					/* update host status */
 					update_host_status(temp_host, FALSE);
 				}
@@ -676,6 +702,23 @@ int xrddefault_read_state_information(void)
 					if (temp_service->last_hard_state_change == (time_t)0)
 						temp_service->last_hard_state_change = temp_service->last_state_change;
 
+					/* if there was an expiring ack */
+					if (temp_service->problem_has_been_acknowledged && temp_service->acknowledgement_end_time > 0) {
+
+						/* get the time */
+						time(&current_time);
+
+						/* and if the expiry time is in the future */
+						if (temp_service->acknowledgement_end_time > current_time) {
+							/* schedule the expiry event */
+							schedule_event(temp_service->acknowledgement_end_time - current_time, handle_service_acknowledgement_expire_event, (void *)temp_service);
+						} else {
+							/* otherwise unacknowledge the problem */
+							temp_service->problem_has_been_acknowledged = FALSE;
+							temp_service->acknowledgement_type = ACKNOWLEDGEMENT_NONE;
+							temp_service->acknowledgement_end_time = (time_t)0;
+						}
+					}
 					/* update service status */
 					update_service_status(temp_service, FALSE);
 				}
@@ -735,7 +778,7 @@ int xrddefault_read_state_information(void)
 					if (ack == FALSE && persistent == FALSE)
 						force_remove = TRUE;
 				}
-				/* comments from downtimes don't get removed, they would be immediatly added again anyway, but with incremented id for each reload */
+				/* comments from downtimes don't get removed, they would be immediately added again anyway, but with incremented id for each reload */
 				else if (entry_type == DOWNTIME_COMMENT) {
 				}
 				/* non-persistent comments don't last past restarts UNLESS they're acks (see above) */
@@ -956,10 +999,6 @@ int xrddefault_read_state_information(void)
 						next_downtime_id = strtoul(val, NULL, 10);
 					else if (!strcmp(var, "next_event_id"))
 						next_event_id = strtoul(val, NULL, 10);
-					else if (!strcmp(var, "next_problem_id"))
-						next_problem_id = strtoul(val, NULL, 10);
-					else if (!strcmp(var, "next_notification_id"))
-						next_notification_id = strtoul(val, NULL, 10);
 				}
 				break;
 
@@ -1018,10 +1057,16 @@ int xrddefault_read_state_information(void)
 							temp_host->current_event_id = strtoul(val, NULL, 10);
 						else if (!strcmp(var, "last_event_id"))
 							temp_host->last_event_id = strtoul(val, NULL, 10);
-						else if (!strcmp(var, "current_problem_id"))
-							temp_host->current_problem_id = strtoul(val, NULL, 10);
-						else if (!strcmp(var, "last_problem_id"))
-							temp_host->last_problem_id = strtoul(val, NULL, 10);
+						else if (!strcmp(var, "current_problem_id")) {
+							nm_free(temp_host->current_problem_id);
+							temp_host->current_problem_id = nm_strdup(val);
+						} else if (!strcmp(var, "last_problem_id")) {
+							nm_free(temp_host->last_problem_id);
+							temp_host->last_problem_id = nm_strdup(val);
+						} else if (!strcmp(var, "problem_start"))
+							temp_host->problem_start = strtoul(val, NULL, 10);
+						else if (!strcmp(var, "problem_end"))
+							temp_host->problem_end = strtoul(val, NULL, 10);
 						else if (!strcmp(var, "state_type"))
 							temp_host->state_type = atoi(val);
 						else if (!strcmp(var, "last_state_change"))
@@ -1044,9 +1089,10 @@ int xrddefault_read_state_information(void)
 							temp_host->last_notification = strtoul(val, NULL, 10);
 						else if (!strcmp(var, "current_notification_number"))
 							temp_host->current_notification_number = atoi(val);
-						else if (!strcmp(var, "current_notification_id"))
-							temp_host->current_notification_id = strtoul(val, NULL, 10);
-						else if (!strcmp(var, "is_flapping"))
+						else if (!strcmp(var, "current_notification_id")) {
+							nm_free(temp_host->current_notification_id);
+							temp_host->current_notification_id = nm_strdup(val);
+						} else if (!strcmp(var, "is_flapping"))
 							temp_host->is_flapping = atoi(val);
 						else if (!strcmp(var, "percent_state_change"))
 							temp_host->percent_state_change = strtod(val, NULL);
@@ -1092,6 +1138,8 @@ int xrddefault_read_state_information(void)
 							temp_host->problem_has_been_acknowledged = (atoi(val) > 0) ? TRUE : FALSE;
 						} else if (!strcmp(var, "acknowledgement_type")) {
 							temp_host->acknowledgement_type = atoi(val);
+						} else if (!strcmp(var, "acknowledgement_end_time")) {
+							temp_host->acknowledgement_end_time = strtoul(val, NULL, 10);
 						} else if (!strcmp(var, "notifications_enabled")) {
 							RETAIN_BOOL(host, temp_host, notifications_enabled, MODATTR_NOTIFICATIONS_ENABLED);
 						} else if (!strcmp(var, "active_checks_enabled")) {
@@ -1124,7 +1172,8 @@ int xrddefault_read_state_information(void)
 								/* make sure the timeperiod still exists... */
 								temp_timeperiod = find_timeperiod(val);
 								if (temp_timeperiod) {
-									temp_host->check_period = temp_timeperiod->name;
+									nm_free(temp_host->check_period);
+									temp_host->check_period = nm_strdup(temp_timeperiod->name);
 									temp_host->check_period_ptr = temp_timeperiod;
 								} else {
 									temp_host->modified_attributes &= ~MODATTR_CHECK_TIMEPERIOD;
@@ -1136,7 +1185,8 @@ int xrddefault_read_state_information(void)
 								/* make sure the timeperiod still exists... */
 								temp_timeperiod = find_timeperiod(val);
 								if (temp_timeperiod) {
-									temp_host->notification_period = temp_timeperiod->name;
+									nm_free(temp_host->notification_period);
+									temp_host->notification_period = nm_strdup(temp_timeperiod->name);
 									temp_host->notification_period_ptr = temp_timeperiod;
 								} else {
 									temp_host->modified_attributes &= ~MODATTR_NOTIFICATION_TIMEPERIOD;
@@ -1260,10 +1310,16 @@ int xrddefault_read_state_information(void)
 							temp_service->current_event_id = strtoul(val, NULL, 10);
 						else if (!strcmp(var, "last_event_id"))
 							temp_service->last_event_id = strtoul(val, NULL, 10);
-						else if (!strcmp(var, "current_problem_id"))
-							temp_service->current_problem_id = strtoul(val, NULL, 10);
-						else if (!strcmp(var, "last_problem_id"))
-							temp_service->last_problem_id = strtoul(val, NULL, 10);
+						else if (!strcmp(var, "current_problem_id")) {
+							nm_free(temp_service->current_problem_id);
+							temp_service->current_problem_id = nm_strdup(val);
+						} else if (!strcmp(var, "last_problem_id")) {
+							nm_free(temp_service->last_problem_id);
+							temp_service->last_problem_id = nm_strdup(val);
+						} else if (!strcmp(var, "problem_start"))
+							temp_service->problem_start = strtoul(val, NULL, 10);
+						else if (!strcmp(var, "problem_end"))
+							temp_service->problem_end = strtoul(val, NULL, 10);
 						else if (!strcmp(var, "state_type"))
 							temp_service->state_type = atoi(val);
 						else if (!strcmp(var, "last_state_change"))
@@ -1305,9 +1361,10 @@ int xrddefault_read_state_information(void)
 							temp_service->notified_on |= ((atoi(val) > 0) ? OPT_CRITICAL : 0);
 						else if (!strcmp(var, "current_notification_number"))
 							temp_service->current_notification_number = atoi(val);
-						else if (!strcmp(var, "current_notification_id"))
-							temp_service->current_notification_id = strtoul(val, NULL, 10);
-						else if (!strcmp(var, "last_notification"))
+						else if (!strcmp(var, "current_notification_id")) {
+							nm_free(temp_service->current_notification_id);
+							temp_service->current_notification_id = nm_strdup(val);
+						} else if (!strcmp(var, "last_notification"))
 							temp_service->last_notification = strtoul(val, NULL, 10);
 						else if (!strcmp(var, "is_flapping"))
 							temp_service->is_flapping = atoi(val);
@@ -1355,6 +1412,8 @@ int xrddefault_read_state_information(void)
 							temp_service->problem_has_been_acknowledged = (atoi(val) > 0) ? TRUE : FALSE;
 						} else if (!strcmp(var, "acknowledgement_type")) {
 							temp_service->acknowledgement_type = atoi(val);
+						} else if (!strcmp(var, "acknowledgement_end_time")) {
+							temp_service->acknowledgement_end_time = strtoul(val, NULL, 10);
 						} else if (!strcmp(var, "notifications_enabled")) {
 							RETAIN_BOOL(service, temp_service, notifications_enabled, MODATTR_NOTIFICATIONS_ENABLED);
 						} else if (!strcmp(var, "active_checks_enabled")) {
@@ -1388,7 +1447,8 @@ int xrddefault_read_state_information(void)
 								/* make sure the timeperiod still exists... */
 								temp_timeperiod = find_timeperiod(val);
 								if (temp_timeperiod) {
-									temp_service->check_period = temp_timeperiod->name;
+									nm_free(temp_service->check_period);
+									temp_service->check_period = nm_strdup(temp_timeperiod->name);
 									temp_service->check_period_ptr = temp_timeperiod;
 								} else {
 									temp_service->modified_attributes &= ~MODATTR_CHECK_TIMEPERIOD;
@@ -1400,7 +1460,8 @@ int xrddefault_read_state_information(void)
 								/* make sure the timeperiod still exists... */
 								temp_timeperiod = find_timeperiod(val);
 								if (temp_timeperiod) {
-									temp_service->notification_period = temp_timeperiod->name;
+									nm_free(temp_service->notification_period);
+									temp_service->notification_period = nm_strdup(temp_timeperiod->name);
 									temp_service->notification_period_ptr = temp_timeperiod;
 								} else {
 									temp_service->modified_attributes &= ~MODATTR_NOTIFICATION_TIMEPERIOD;
@@ -1504,7 +1565,8 @@ int xrddefault_read_state_information(void)
 								/* make sure the timeperiod still exists... */
 								temp_timeperiod = find_timeperiod(val);
 								if (temp_timeperiod) {
-									temp_contact->host_notification_period = temp_timeperiod->name;
+									nm_free(temp_contact->host_notification_period);
+									temp_contact->host_notification_period = nm_strdup(temp_timeperiod->name);
 									temp_contact->host_notification_period_ptr = temp_timeperiod;
 								} else {
 									temp_contact->modified_host_attributes &= ~MODATTR_NOTIFICATION_TIMEPERIOD;
@@ -1516,7 +1578,8 @@ int xrddefault_read_state_information(void)
 								/* make sure the timeperiod still exists... */
 								temp_timeperiod = find_timeperiod(val);
 								if (temp_timeperiod) {
-									temp_contact->service_notification_period = temp_timeperiod->name;
+									nm_free(temp_contact->service_notification_period);
+									temp_contact->service_notification_period = nm_strdup(temp_timeperiod->name);
 									temp_contact->service_notification_period_ptr = temp_timeperiod;
 								} else {
 									temp_contact->modified_service_attributes &= ~MODATTR_NOTIFICATION_TIMEPERIOD;
@@ -1636,8 +1699,6 @@ int xrddefault_read_state_information(void)
 	mmap_fclose(thefile);
 
 	if (sort_downtime() != OK)
-		return ERROR;
-	if (sort_comments() != OK)
 		return ERROR;
 
 	return OK;

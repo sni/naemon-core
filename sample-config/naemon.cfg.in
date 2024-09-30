@@ -170,7 +170,7 @@ event_broker_options=-1
 # This directive is used to specify an event broker module that should
 # be loaded by Naemon at startup.  Use multiple directives if you want
 # to load more than one module.  Arguments that should be passed to
-# the module at startup are seperated from the module path by a space.
+# the module at startup are separated from the module path by a space.
 #
 # Example:
 #
@@ -521,9 +521,11 @@ interval_length=60
 # AGGRESSIVE HOST CHECKING OPTION
 # If you don't want to turn on aggressive host checking features, set
 # this value to 0 (the default).  Otherwise set this value to 1 to
-# enable the aggressive check option.  Read the docs for more info
+# enable the aggressive check option. When disabled (0), Naemon will treat
+# WARNING states as UP for host checks. This lets you use the same
+# check plugin for host and service checks. Read the docs for more info
 # on what aggressive host check is or check out the source code in
-# base/checks.c
+# src/naemon/checks_host.c
 
 use_aggressive_host_checking=0
 
@@ -647,7 +649,7 @@ process_performance_data=0
 # performance data files are opened in write ("w") or append ("a")
 # mode. If you want to use named pipes, you should use the special
 # pipe ("p") mode which avoid blocking at startup, otherwise you will
-# likely want the defult append ("a") mode.
+# likely want the default append ("a") mode.
 
 #host_perfdata_file_mode=a
 #service_perfdata_file_mode=a
@@ -676,7 +678,7 @@ process_performance_data=0
 
 
 # HOST AND SERVICE PERFORMANCE DATA PROCESS EMPTY RESULTS
-# These options determine wether the core will process empty perfdata
+# These options determine whether the core will process empty perfdata
 # results or not. This is needed for distributed monitoring, and intentionally
 # turned on by default.
 # If you don't require empty perfdata - saving some cpu cycles
@@ -1039,18 +1041,27 @@ allow_empty_hostgroup_assignment=0
 # This option will disable all service checks if the host is not in an UP state
 #
 # While desirable in some environments, enabling this value can distort report
-# values as the expected quantity of checks will not have been performed
-
+# values as the expected quantity of checks will not have been performed.
+# Set service_skip_check_host_down_status to -2 to mitigate this.
 #host_down_disable_service_checks=0
+
+# DISABLE SERVICE CHECKS WHEN SERVICE PARENTS DOWN
+# This option will disable all service checks if the service parents are not in an UP state
+#
+# While desirable in some environments, enabling this value can distort report
+# values as the expected quantity of checks will not have been performed.
+# Set service_skip_check_dependency_status to -2 to mitigate this.
+#service_parents_disable_service_checks=0
 
 # SET SERVICE/HOST STATUS WHEN SERVICE CHECK SKIPPED
 # These options will allow you to set the status of a service when its
-# service check is skipped due to one of two reasons:
-# 1) failed dependency check; 2) host not up
+# service check is skipped due to the following reasons:
+# 1) failed dependency check; 2) host not up 3) service parents failed
 # Number 2 can only happen if 'host_down_disable_service_checks' above
 # is set to 1.
 # Valid values for the service* options are:
 #     -1     Do not change the service status (default)
+#     -2     Keep service running as long as it is ok/warning.
 #      0     Set the service status to STATE_OK
 #      1     Set the service status to STATE_WARNING
 #      2     Set the service status to STATE_CRITICAL
@@ -1062,6 +1073,7 @@ allow_empty_hostgroup_assignment=0
 # status of a host when its check is skipped due to a failed dependency check.
 # Valid values for the host_dependency_skip_check_status are:
 #     -1     Do not change the service status (default)
+#     -2     Keep host running as long as it is up.
 #      0     Set the host status to STATE_UP
 #      1     Set the host status to STATE_DOWN
 #      2     Set the host status to STATE_UNREACHABLE

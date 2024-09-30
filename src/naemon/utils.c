@@ -9,6 +9,7 @@
 #include "objects_servicedependency.h"
 #include "statusdata.h"
 #include "comments.h"
+#include "downtime.h"
 #include "macros.h"
 #include "broker.h"
 #include "nebmods.h"
@@ -127,9 +128,7 @@ unsigned long retained_process_host_attribute_mask = 0L;
 unsigned long retained_process_service_attribute_mask = 0L;
 
 unsigned long next_event_id = 0L;
-unsigned long next_problem_id = 0L;
 unsigned long next_comment_id = 0L;
-unsigned long next_notification_id = 0L;
 
 int verify_config = FALSE;
 int precache_objects = FALSE;
@@ -166,6 +165,7 @@ char *use_timezone = NULL;
 int allow_empty_hostgroup_assignment = DEFAULT_ALLOW_EMPTY_HOSTGROUP_ASSIGNMENT;
 int allow_circular_dependencies = DEFAULT_ALLOW_CIRCULAR_DEPENDENCIES;
 int host_down_disable_service_checks = DEFAULT_HOST_DOWN_DISABLE_SERVICE_CHECKS;
+int service_parents_disable_service_checks = DEFAULT_SERVICE_PARENTS_DISABLE_SERVICE_CHECKS;
 int service_skip_check_dependency_status = DEFAULT_SKIP_CHECK_STATUS;
 int service_skip_check_host_down_status = DEFAULT_SKIP_CHECK_STATUS;
 int host_skip_check_dependency_status = DEFAULT_SKIP_CHECK_STATUS;
@@ -345,7 +345,7 @@ void signal_react()
 
 /**
  * Handle the SIGXFSZ signal. A SIGXFSZ signal is received when a file exceeds
- * the maximum allowable size either as dictated by the fzise paramater in
+ * the maximum allowable size either as dictated by the fzise parameter in
  * /etc/security/limits.conf (ulimit -f) or by the maximum size allowed by
  * the filesystem
  */
@@ -963,6 +963,7 @@ void free_memory(nagios_macros *mac)
 	destroy_objects_servicegroup(TRUE);
 
 	free_comment_data();
+	free_downtime_data();
 
 	nm_free(global_host_event_handler);
 	nm_free(global_service_event_handler);
@@ -1138,7 +1139,6 @@ int reset_variables(void)
 	next_comment_id = 0L; /* comment and downtime id get initialized to nonzero elsewhere */
 	next_downtime_id = 0L;
 	next_event_id = 1;
-	next_notification_id = 1;
 
 	status_update_interval = DEFAULT_STATUS_UPDATE_INTERVAL;
 

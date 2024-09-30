@@ -22,6 +22,7 @@
 #include "objects_servicedependency.h"
 #include <string.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 #include "neberrors.h"
 
 /* Scheduling (before worker job is started) */
@@ -143,7 +144,6 @@ static void handle_service_check_event(struct nm_event_execution_properties *evp
 	int nudge_seconds = 0;
 	double latency;
 	struct timeval tv;
-	struct timeval event_runtime;
 	int options = temp_service->check_options;
 	host *temp_host = NULL;
 
@@ -152,10 +152,8 @@ static void handle_service_check_event(struct nm_event_execution_properties *evp
 	if (evprop->execution_type == EVENT_EXEC_NORMAL) {
 
 		/* get event latency */
+		latency = evprop->attributes.timed.latency;
 		gettimeofday(&tv, NULL);
-		event_runtime.tv_sec = temp_service->next_check;
-		event_runtime.tv_usec = 0;
-		latency = (double)(tv_delta_f(&event_runtime, &tv));
 
 		/* When the callback is called, the pointer to the timed event is invalid */
 		temp_service->next_check_event = NULL;
@@ -202,27 +200,94 @@ static void handle_service_check_event(struct nm_event_execution_properties *evp
 			/* check service dependencies for execution */
 			log_debug_info(DEBUGL_CHECKS, 0, "Service '%s' on host '%s' checking dependencies...\n", temp_service->description, temp_service->host_name);
 			if (check_service_dependencies(temp_service, EXECUTION_DEPENDENCY) == DEPENDENCIES_FAILED) {
-				if (service_skip_check_dependency_status >= 0) {
-					temp_service->current_state = service_skip_check_dependency_status;
-					if (strstr(temp_service->plugin_output, "(service dependency check failed)") == NULL) {
-						char *old_output = nm_strdup(temp_service->plugin_output);
-						nm_free(temp_service->plugin_output);
-						nm_asprintf(&temp_service->plugin_output, "(service dependency check failed) was: %s", old_output);
-						nm_free(old_output);
+				int keep_running = FALSE;
+				switch(service_skip_check_dependency_status) {
+					case SKIP_KEEP_RUNNING_WHEN_UP:
+						if (temp_service->current_state <= STATE_WARNING) {
+							keep_running = TRUE;
+						}
+						break;
+					case STATE_OK:
+					case STATE_WARNING:
+					case STATE_CRITICAL:
+					case STATE_UNKNOWN:
+						temp_service->current_state = service_skip_check_dependency_status;
+						if (strstr(temp_service->plugin_output, "(service dependency check failed)") == NULL) {
+							char *old_output = nm_strdup(temp_service->plugin_output);
+							nm_free(temp_service->plugin_output);
+							nm_asprintf(&temp_service->plugin_output, "(service dependency check failed) was: %s", old_output);
+							nm_free(old_output);
+						}
+						break;
+				}
+				if (!keep_running) {
+					log_debug_info(DEBUGL_CHECKS, 0, "Service '%s' on host '%s' failed dependency check. Aborting check\n", temp_service->description, temp_service->host_name);
+					return;
+				}
+			}
+
+			/* check service parents for execution */
+			if(service_parents_disable_service_checks && temp_service->parents) {
+				int parents_failed = FALSE;
+				if (temp_service->current_state != STATE_OK) {
+					servicesmember *sm = temp_service->parents;
+					while (sm && sm->service_ptr->current_state != STATE_OK) {
+						sm = sm->next;
+					}
+					if (sm == NULL) {
+						parents_failed = TRUE;
 					}
 				}
-				log_debug_info(DEBUGL_CHECKS, 0, "Service '%s' on host '%s' failed dependency check. Aborting check\n", temp_service->description, temp_service->host_name);
-				return;
+				if(parents_failed) {
+					switch(service_skip_check_dependency_status) {
+						case SKIP_KEEP_RUNNING_WHEN_UP:
+							if (temp_service->current_state <= STATE_WARNING) {
+								parents_failed = FALSE;
+							}
+							break;
+						case STATE_OK:
+						case STATE_WARNING:
+						case STATE_CRITICAL:
+						case STATE_UNKNOWN:
+							temp_service->current_state = service_skip_check_dependency_status;
+							if (strstr(temp_service->plugin_output, "(service parents failed)") == NULL) {
+								char *old_output = nm_strdup(temp_service->plugin_output);
+								nm_free(temp_service->plugin_output);
+								nm_asprintf(&temp_service->plugin_output, "(service parents failed) was: %s", old_output);
+								nm_free(old_output);
+							}
+							break;
+					}
+				}
+				if(parents_failed) {
+					log_debug_info(DEBUGL_CHECKS, 0, "Service '%s' on host '%s' failed parents check. Aborting check\n", temp_service->description, temp_service->host_name);
+					return;
+				}
 			}
+
 
 			/* check if host is up - if not, do not perform check */
 			if (host_down_disable_service_checks) {
 				if ((temp_host = temp_service->host_ptr) == NULL) {
 					log_debug_info(DEBUGL_CHECKS, 2, "Host pointer NULL in handle_service_check_event().\n");
 					return;
-				} else {
-					if (temp_host->current_state != STATE_UP) {
+				}
+				if (temp_host->current_state != STATE_UP) {
+					int keep_running = TRUE;
+					switch (service_skip_check_host_down_status) {
+					/* only keep running if service is up or host_down_disable_service_checks is disabled */
+					case SKIP_KEEP_RUNNING_WHEN_UP:
+						if (temp_service->current_state > STATE_WARNING) {
+							log_debug_info(DEBUGL_CHECKS, 2, "Host and service state not UP, so service check will not be performed - will be rescheduled as normal.\n");
+							keep_running = FALSE;
+						}
+						break;
+					default:
 						log_debug_info(DEBUGL_CHECKS, 2, "Host state not UP, so service check will not be performed - will be rescheduled as normal.\n");
+						keep_running = FALSE;
+						break;
+					}
+					if(!keep_running) {
 						if (service_skip_check_host_down_status >= 0) {
 							temp_service->current_state = service_skip_check_host_down_status;
 							if (strstr(temp_service->plugin_output, "(host is down)") == NULL) {
@@ -240,6 +305,9 @@ static void handle_service_check_event(struct nm_event_execution_properties *evp
 
 		/* Otherwise, run the event */
 		run_scheduled_service_check(temp_service, options, latency);
+	} else if (evprop->execution_type == EVENT_EXEC_ABORTED) {
+		/* If the event is destroyed, remove the reference. */
+		temp_service->next_check_event = NULL;
 	}
 }
 
@@ -453,6 +521,8 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 		}
 	}
 
+	temp_service->last_update = current_time;
+
 	/* clear the freshening flag (it would have been set if this service was determined to be stale) */
 	if (queued_check_result->check_options & CHECK_OPTION_FRESHNESS_CHECK)
 		temp_service->is_being_freshened = FALSE;
@@ -482,6 +552,8 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 
 	/* was this check passive or active? */
 	temp_service->check_type = (queued_check_result->check_type == CHECK_TYPE_ACTIVE) ? CHECK_TYPE_ACTIVE : CHECK_TYPE_PASSIVE;
+
+	temp_service->latency = queued_check_result->latency;
 
 	/* update check statistics for passive checks */
 	if (queued_check_result->check_type == CHECK_TYPE_PASSIVE)
@@ -636,6 +708,7 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 
 			temp_service->problem_has_been_acknowledged = FALSE;
 			temp_service->acknowledgement_type = ACKNOWLEDGEMENT_NONE;
+			temp_service->acknowledgement_end_time = (time_t)0;
 
 			/* remove any non-persistant comments associated with the ack */
 			delete_service_acknowledgement_comments(temp_service);
@@ -643,6 +716,7 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 
 			temp_service->problem_has_been_acknowledged = FALSE;
 			temp_service->acknowledgement_type = ACKNOWLEDGEMENT_NONE;
+			temp_service->acknowledgement_end_time = (time_t)0;
 
 			/* remove any non-persistant comments associated with the ack */
 			delete_service_acknowledgement_comments(temp_service);
@@ -681,14 +755,18 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 		/* update the problem id when transitioning to a problem state */
 		if (temp_service->last_state == STATE_OK) {
 			/* don't reset last problem id, or it will be zero the next time a problem is encountered */
-			temp_service->current_problem_id = next_problem_id;
-			next_problem_id++;
+			nm_free(temp_service->current_problem_id);
+			temp_service->current_problem_id = (char*)g_uuid_string_random();
+			temp_service->problem_start = current_time;
+			temp_service->problem_end = 0L;
 		}
 
 		/* clear the problem id when transitioning from a problem state to an OK state */
 		if (temp_service->current_state == STATE_OK) {
 			temp_service->last_problem_id = temp_service->current_problem_id;
-			temp_service->current_problem_id = 0L;
+			temp_service->current_problem_id = NULL;
+			if(temp_service->problem_start > 0)
+				temp_service->problem_end = current_time;
 		}
 	}
 
@@ -705,6 +783,7 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 		/* reset the acknowledgement flag (this should already have been done, but just in case...) */
 		temp_service->problem_has_been_acknowledged = FALSE;
 		temp_service->acknowledgement_type = ACKNOWLEDGEMENT_NONE;
+		temp_service->acknowledgement_end_time = (time_t)0;
 
 		/* verify the route to the host and send out host recovery notifications */
 		if (temp_host->current_state != STATE_UP) {
@@ -788,6 +867,7 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 		temp_service->current_notification_number = 0;
 		temp_service->problem_has_been_acknowledged = FALSE;
 		temp_service->acknowledgement_type = ACKNOWLEDGEMENT_NONE;
+		temp_service->acknowledgement_end_time = (time_t)0;
 		temp_service->notified_on = 0;
 	}
 
@@ -1072,7 +1152,6 @@ int handle_async_service_check_result(service *temp_service, check_result *queue
 	nm_free(old_plugin_output);
 	nm_free(old_long_plugin_output);
 
-	temp_service->last_update = current_time;
 	return OK;
 }
 
@@ -1124,6 +1203,7 @@ static void check_for_orphaned_services_eventhandler(struct nm_event_execution_p
 
 				/* disable the executing flag */
 				temp_service->is_executing = FALSE;
+				temp_service->last_update = current_time;
 
 				/* schedule an immediate check of the service */
 				schedule_next_service_check(temp_service, 0, CHECK_OPTION_ORPHAN_CHECK);

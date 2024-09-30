@@ -268,9 +268,20 @@ void init_event_queue(void)
 	event_queue = evheap_create();
 }
 
-void destroy_event_queue(void)
+void clear_event_queue(void)
 {
 	struct timed_event *ev;
+
+	if (event_queue == NULL)
+		return;
+
+	while ((ev = evheap_head(event_queue)) != NULL) {
+		destroy_event(ev);
+	}
+}
+
+void destroy_event_queue(void)
+{
 	/*
 	 * Since naemon doesn't know if things is started, we can't trust that
 	 * destroy event queue actually means we have an event queue to destroy
@@ -278,9 +289,7 @@ void destroy_event_queue(void)
 	if (event_queue == NULL)
 		return;
 
-	while ((ev = evheap_head(event_queue)) != NULL) {
-		destroy_event(ev);
-	}
+	clear_event_queue();
 	evheap_destroy(event_queue);
 	event_queue = NULL;
 }
@@ -334,10 +343,10 @@ static int event_poll_full(iobroker_set *iobs, long int timeout_ms)
 	} else if (inputs > 0) {
 		log_debug_info(DEBUGL_IPC, 2, "## %d descriptors had input\n", inputs);
 		/*
+		* Event was cancelled by iobroker input:
 		* Since we got input on one of the file descriptors, this wakeup wasn't
 		* about a timed event, so start the main loop over.
 		*/
-		log_debug_info(DEBUGL_EVENTS, 0, "Event was cancelled by iobroker input\n");
 		return 0;
 	}
 

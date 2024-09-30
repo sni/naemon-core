@@ -137,7 +137,7 @@
 /****** EVENT FLAGS ************************/
 
 #define NEBFLAG_NONE                          0
-#define NEBFLAG_PROCESS_INITIATED             1         /* event was initiated by Nagios process */
+#define NEBFLAG_PROCESS_INITIATED             1         /* event was initiated by Naemon process */
 #define NEBFLAG_USER_INITIATED                2         /* event was initiated by a user request */
 #define NEBFLAG_MODULE_INITIATED              3         /* event was initiated by an event broker module */
 
@@ -191,7 +191,7 @@ void broker_adaptive_contact_data(int, int, int, contact *, int, unsigned long, 
 int broker_external_command(int, int, int, int, time_t, char *, char *);
 void broker_aggregated_status_data(int, int, int);
 void broker_retention_data(int, int, int);
-void broker_acknowledgement_data(int, int, int, int, void *, char *, char *, int, int, int);
+void broker_acknowledgement_data(int, int, int, int, void *, char *, char *, int, int, int, time_t);
 void broker_statechange_data(int, int, int, int, void *, int, int, int, int);
 int broker_vault_macro(char *, char **, int *, nagios_macros *);
 

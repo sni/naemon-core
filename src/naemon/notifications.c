@@ -16,6 +16,7 @@
 #include "nm_alloc.h"
 #include <string.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 
 struct notification_job {
 	host *hst;
@@ -399,8 +400,8 @@ int service_notification(service *svc, int type, char *not_author, char *not_dat
 	log_debug_info(DEBUGL_NOTIFICATIONS, 1, "Current notification number: %d (%s)\n", svc->current_notification_number, (increment_notification_number == TRUE) ? "incremented" : "changed");
 
 	/* save and increase the current notification id */
-	svc->current_notification_id = next_notification_id;
-	next_notification_id++;
+	nm_free(svc->current_notification_id);
+	svc->current_notification_id = g_uuid_string_random();
 
 	log_debug_info(DEBUGL_NOTIFICATIONS, 2, "Creating list of contacts to be notified.\n");
 
@@ -477,7 +478,7 @@ int service_notification(service *svc, int type, char *not_author, char *not_dat
 		mac.x[MACRO_NOTIFICATIONNUMBER] = nm_strdup(mac.x[MACRO_SERVICENOTIFICATIONNUMBER]);
 
 		/* set the notification id macro */
-		nm_asprintf(&mac.x[MACRO_SERVICENOTIFICATIONID], "%lu", svc->current_notification_id);
+		nm_asprintf(&mac.x[MACRO_SERVICENOTIFICATIONID], "%s", svc->current_notification_id);
 
 		/* notify each contact (duplicates have been removed) */
 		for (temp_notification = notification_list; temp_notification != NULL; temp_notification = temp_notification->next) {
@@ -607,18 +608,6 @@ int check_service_notification_viability(service *svc, int type, int options)
 
 	temp_host = svc->host_ptr;
 
-	/* if all parents are bad (usually just one), we shouldn't notify */
-	if (svc->parents) {
-		sm = svc->parents;
-		while (sm && sm->service_ptr->current_state != STATE_OK) {
-			sm = sm->next;
-		}
-		if (sm == NULL) {
-			LOG_SERVICE_NSR(NSR_BAD_PARENTS);
-			return ERROR;
-		}
-	}
-
 	/* if the service has no notification period, inherit one from the host */
 	temp_period = svc->notification_period_ptr;
 	if (temp_period == NULL) {
@@ -668,7 +657,6 @@ int check_service_notification_viability(service *svc, int type, int options)
 	}
 
 
-
 	/****************************************/
 	/*** SPECIAL CASE FOR ACKNOWLEGEMENTS ***/
 	/****************************************/
@@ -685,7 +673,6 @@ int check_service_notification_viability(service *svc, int type, int options)
 		/* acknowledgement viability test passed, so the notification can be sent out */
 		return OK;
 	}
-
 
 	/****************************************/
 	/*** SPECIAL CASE FOR FLAPPING ALERTS ***/
@@ -734,6 +721,21 @@ int check_service_notification_viability(service *svc, int type, int options)
 		return OK;
 	}
 
+	/******************************************************/
+	/*** CHECK SERVICE PARENTS FOR NORMAL NOTIFICATIONS ***/
+	/******************************************************/
+	/* if all parents are bad (usually just one), we shouldn't notify */
+	/* but do not prevent recovery notifications */
+	if (svc->parents && svc->current_state != STATE_OK) {
+		sm = svc->parents;
+		while (sm && sm->service_ptr->current_state != STATE_OK) {
+			sm = sm->next;
+		}
+		if (sm == NULL) {
+			LOG_SERVICE_NSR(NSR_BAD_PARENTS);
+			return ERROR;
+		}
+	}
 
 	/****************************************/
 	/*** NORMAL NOTIFICATIONS ***************/
@@ -792,7 +794,7 @@ int check_service_notification_viability(service *svc, int type, int options)
 	}
 
 	/* if this service is currently flapping, don't send the notification */
-	if (svc->is_flapping == TRUE) {
+	if (enable_flap_detection == TRUE && svc->flap_detection_enabled == TRUE && svc->is_flapping == TRUE) {
 		LOG_SERVICE_NSR(NSR_IS_FLAPPING);
 		return ERROR;
 	}
@@ -1282,8 +1284,8 @@ int host_notification(host *hst, int type, char *not_author, char *not_data, int
 	log_debug_info(DEBUGL_NOTIFICATIONS, 1, "Current notification number: %d (%s)\n", hst->current_notification_number, (increment_notification_number == TRUE) ? "incremented" : "unchanged");
 
 	/* save and increase the current notification id */
-	hst->current_notification_id = next_notification_id;
-	next_notification_id++;
+	nm_free(hst->current_notification_id);
+	hst->current_notification_id = g_uuid_string_random();
 
 	log_debug_info(DEBUGL_NOTIFICATIONS, 2, "Creating list of contacts to be notified.\n");
 
@@ -1359,7 +1361,7 @@ int host_notification(host *hst, int type, char *not_author, char *not_data, int
 		mac.x[MACRO_NOTIFICATIONNUMBER] = nm_strdup(mac.x[MACRO_HOSTNOTIFICATIONNUMBER]);
 
 		/* set the notification id macro */
-		nm_asprintf(&mac.x[MACRO_HOSTNOTIFICATIONID], "%lu", hst->current_notification_id);
+		nm_asprintf(&mac.x[MACRO_HOSTNOTIFICATIONID], "%s", hst->current_notification_id);
 
 		/* notify each contact (duplicates have been removed) */
 		for (temp_notification = notification_list; temp_notification != NULL; temp_notification = temp_notification->next) {
@@ -1652,7 +1654,7 @@ int check_host_notification_viability(host *hst, int type, int options)
 	}
 
 	/* if this host is currently flapping, don't send the notification */
-	if (hst->is_flapping == TRUE) {
+	if (enable_flap_detection == TRUE && hst->flap_detection_enabled == TRUE && hst->is_flapping == TRUE) {
 		LOG_HOST_NSR(NSR_IS_FLAPPING);
 		return ERROR;
 	}
