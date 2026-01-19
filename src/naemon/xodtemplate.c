@@ -112,9 +112,10 @@ static int presorted_objects = FALSE;
 /* xodtemplate id / object counter */
 static struct object_count xodcount;
 
-/* reusable bitmaps for expanding objects */
-static bitmap *host_map = NULL, *contact_map = NULL;
-static bitmap *service_map = NULL, *parent_map = NULL;
+/* reusable lookup trees for expanding objects */
+static GTree *host_map = NULL;
+static GTree *contact_map = NULL;
+static GTree *service_map = NULL, *parent_map = NULL;
 
 /*
  * simple inheritance macros. o = object, t = template, v = variable
@@ -308,7 +309,7 @@ static void xodtemplate_free_memory(void)
 		nm_free(this_contactgroup->name);
 		nm_free(this_contactgroup->members);
 		nm_free(this_contactgroup->contactgroup_members);
-		bitmap_destroy(this_contactgroup->member_map);
+		nm_gtree_destroy(this_contactgroup->member_map);
 		free_objectlist(&this_contactgroup->member_list);
 		free_objectlist(&this_contactgroup->group_list);
 		nm_free(this_contactgroup->contactgroup_name);
@@ -325,7 +326,7 @@ static void xodtemplate_free_memory(void)
 		nm_free(this_hostgroup->name);
 		nm_free(this_hostgroup->members);
 		nm_free(this_hostgroup->hostgroup_members);
-		bitmap_destroy(this_hostgroup->member_map);
+		nm_gtree_destroy(this_hostgroup->member_map);
 		free_objectlist(&this_hostgroup->member_list);
 		free_objectlist(&this_hostgroup->group_list);
 		nm_free(this_hostgroup->hostgroup_name);
@@ -343,7 +344,7 @@ static void xodtemplate_free_memory(void)
 		next_servicegroup = this_servicegroup->next;
 		nm_free(this_servicegroup->members);
 		nm_free(this_servicegroup->servicegroup_members);
-		bitmap_destroy(this_servicegroup->member_map);
+		nm_gtree_destroy(this_servicegroup->member_map);
 		free_objectlist(&this_servicegroup->member_list);
 		free_objectlist(&this_servicegroup->group_list);
 		nm_free(this_servicegroup->template);
@@ -1326,7 +1327,7 @@ static int xodtemplate_parse_timeperiod_directive(xodtemplate_timeperiod *tperio
 /******************************************************************/
 
 /* expands contacts */
-static int xodtemplate_expand_contacts(objectlist **ret, bitmap *reject_map, char *contacts, int _config_file, int _start_line)
+static int xodtemplate_expand_contacts(objectlist **ret, GTree *reject_map, char *contacts, int _config_file, int _start_line)
 {
 	char *contact_names = NULL;
 	char *temp_ptr = NULL;
@@ -1390,7 +1391,7 @@ static int xodtemplate_expand_contacts(objectlist **ret, bitmap *reject_map, cha
 
 				/* add contact to list */
 				if (reject_item)
-					bitmap_set(reject_map, temp_contact->id);
+					g_tree_insert(reject_map, GINT_TO_POINTER(temp_contact->id), GINT_TO_POINTER(1));
 				else
 					prepend_object_to_objectlist(ret, temp_contact);
 
@@ -1419,7 +1420,7 @@ static int xodtemplate_expand_contacts(objectlist **ret, bitmap *reject_map, cha
 
 					/* add contact to list */
 					if (reject_item)
-						bitmap_set(reject_map, temp_contact->id);
+						g_tree_insert(reject_map, GINT_TO_POINTER(temp_contact->id), GINT_TO_POINTER(1));
 					else
 						prepend_object_to_objectlist(ret, temp_contact);
 
@@ -1437,7 +1438,7 @@ static int xodtemplate_expand_contacts(objectlist **ret, bitmap *reject_map, cha
 
 					/* add contact to list */
 					if (reject_item)
-						bitmap_set(reject_map, temp_contact->id);
+						g_tree_insert(reject_map, GINT_TO_POINTER(temp_contact->id), GINT_TO_POINTER(1));
 					else
 						prepend_object_to_objectlist(ret, temp_contact);
 
@@ -1468,7 +1469,7 @@ static int xodtemplate_expand_contacts(objectlist **ret, bitmap *reject_map, cha
  * This can only be called after hostgroups are recombobulated.
  * returns ERROR on error and OK on success.
  */
-static int xodtemplate_expand_hostgroups(objectlist **list, bitmap *reject_map, char *hostgroups, int _config_file, int _start_line)
+static int xodtemplate_expand_hostgroups(objectlist **list, GTree *reject_map, char *hostgroups, int _config_file, int _start_line)
 {
 	char *hostgroup_names = NULL;
 	char *temp_ptr = NULL;
@@ -1532,7 +1533,7 @@ static int xodtemplate_expand_hostgroups(objectlist **list, bitmap *reject_map, 
 
 				/* add hostgroup to list */
 				if (reject_item)
-					bitmap_unite(reject_map, temp_hostgroup->member_map);
+					nm_gtree_unite(reject_map, temp_hostgroup->member_map);
 				else
 					prepend_object_to_objectlist(list, temp_hostgroup);
 
@@ -1558,7 +1559,7 @@ static int xodtemplate_expand_hostgroups(objectlist **list, bitmap *reject_map, 
 
 					/* add hostgroup to list */
 					if (reject_item)
-						bitmap_unite(reject_map, temp_hostgroup->member_map);
+						nm_gtree_unite(reject_map, temp_hostgroup->member_map);
 					else
 						prepend_object_to_objectlist(list, temp_hostgroup);
 
@@ -1575,7 +1576,7 @@ static int xodtemplate_expand_hostgroups(objectlist **list, bitmap *reject_map, 
 
 					/* add hostgroup to list */
 					if (reject_item)
-						bitmap_unite(reject_map, temp_hostgroup->member_map);
+						nm_gtree_unite(reject_map, temp_hostgroup->member_map);
 					else
 						prepend_object_to_objectlist(list, temp_hostgroup);
 
@@ -1599,7 +1600,7 @@ static int xodtemplate_expand_hostgroups(objectlist **list, bitmap *reject_map, 
 
 
 /* expands hosts */
-static int xodtemplate_expand_hosts(objectlist **list, bitmap *reject_map, char *hosts, int _config_file, int _start_line)
+static int xodtemplate_expand_hosts(objectlist **list, GTree *reject_map, char *hosts, int _config_file, int _start_line)
 {
 	char *temp_ptr = NULL;
 	xodtemplate_host *temp_host = NULL;
@@ -1660,7 +1661,7 @@ static int xodtemplate_expand_hosts(objectlist **list, bitmap *reject_map, char 
 				if (!reject_item)
 					prepend_object_to_objectlist(list, temp_host);
 				else
-					bitmap_set(reject_map, temp_host->id);
+					g_tree_insert(reject_map, GINT_TO_POINTER(temp_host->id), GINT_TO_POINTER(1));
 
 			}
 
@@ -1689,7 +1690,7 @@ static int xodtemplate_expand_hosts(objectlist **list, bitmap *reject_map, char 
 					if (!reject_item)
 						prepend_object_to_objectlist(list, temp_host);
 					else
-						bitmap_set(reject_map, temp_host->id);
+						g_tree_insert(reject_map, GINT_TO_POINTER(temp_host->id), GINT_TO_POINTER(1));
 
 				}
 			}
@@ -1707,7 +1708,7 @@ static int xodtemplate_expand_hosts(objectlist **list, bitmap *reject_map, char 
 					if (!reject_item)
 						prepend_object_to_objectlist(list, temp_host);
 					else
-						bitmap_set(reject_map, temp_host->id);
+						g_tree_insert(reject_map, GINT_TO_POINTER(temp_host->id), GINT_TO_POINTER(1));
 
 				}
 			}
@@ -1734,10 +1735,10 @@ static int xodtemplate_expand_hosts(objectlist **list, bitmap *reject_map, char 
 static objectlist *xodtemplate_expand_hostgroups_and_hosts(char *hostgroups, char *hosts, int _config_file, int _start_line)
 {
 	objectlist *ret = NULL, *glist = NULL, *hlist, *list = NULL, *next;
-	bitmap *reject;
+	GTree *reject;
 	int result;
 
-	reject = bitmap_create(xodcount.hosts);
+	reject = g_tree_new(nm_cmp_ptr);
 	if (!reject) {
 		nm_log(NSLOG_CONFIG_ERROR, "Error: Unable to create reject map for expanding hosts and hostgroups\n");
 		return NULL;
@@ -1752,7 +1753,7 @@ static objectlist *xodtemplate_expand_hostgroups_and_hosts(char *hostgroups, cha
 		if (result != OK) {
 			free_objectlist(&glist);
 			free_objectlist(&ret);
-			bitmap_destroy(reject);
+			nm_gtree_destroy(reject);
 			return NULL;
 		}
 	}
@@ -1764,7 +1765,7 @@ static objectlist *xodtemplate_expand_hostgroups_and_hosts(char *hostgroups, cha
 		if (result != OK) {
 			nm_log(NSLOG_CONFIG_ERROR, "Failed to expand hostgroups '%s' to something sensible\n", hostgroups);
 			free_objectlist(&glist);
-			bitmap_destroy(reject);
+			nm_gtree_destroy(reject);
 			return NULL;
 		}
 	}
@@ -1779,12 +1780,12 @@ static objectlist *xodtemplate_expand_hostgroups_and_hosts(char *hostgroups, cha
 		free(list); /* free it as we go along */
 		for (hlist = hg->member_list; hlist; hlist = hlist->next) {
 			xodtemplate_host *h = (xodtemplate_host *)hlist->object_ptr;
-			if (bitmap_isset(reject, h->id))
+			if (g_tree_lookup(reject, GINT_TO_POINTER(h->id)) != NULL)
 				continue;
 			prepend_object_to_objectlist(&ret, h);
 		}
 	}
-	bitmap_destroy(reject);
+	nm_gtree_destroy(reject);
 
 	return ret;
 }
@@ -1796,7 +1797,7 @@ static objectlist *xodtemplate_expand_hostgroups_and_hosts(char *hostgroups, cha
  * reject will map services from all rejected servicegroups
  * This can only be called after servicegroups are recombobulated.
  */
-static int xodtemplate_expand_servicegroups(objectlist **list, bitmap *reject, char *servicegroups, int _config_file, int _start_line)
+static int xodtemplate_expand_servicegroups(objectlist **list, GTree *reject, char *servicegroups, int _config_file, int _start_line)
 {
 	xodtemplate_servicegroup  *temp_servicegroup = NULL;
 	regex_t preg;
@@ -1861,7 +1862,7 @@ static int xodtemplate_expand_servicegroups(objectlist **list, bitmap *reject, c
 
 				/* add servicegroup members to list */
 				if (reject_item)
-					bitmap_unite(reject, temp_servicegroup->member_map);
+					nm_gtree_unite(reject, temp_servicegroup->member_map);
 				else
 					prepend_object_to_objectlist(list, temp_servicegroup);
 			}
@@ -1886,7 +1887,7 @@ static int xodtemplate_expand_servicegroups(objectlist **list, bitmap *reject, c
 
 					/* add servicegroup members to list */
 					if (reject_item)
-						bitmap_unite(reject, temp_servicegroup->member_map);
+						nm_gtree_unite(reject, temp_servicegroup->member_map);
 					else
 						prepend_object_to_objectlist(list, temp_servicegroup);
 				}
@@ -1902,7 +1903,7 @@ static int xodtemplate_expand_servicegroups(objectlist **list, bitmap *reject, c
 
 					/* add servicegroup members to list */
 					if (reject_item)
-						bitmap_unite(reject, temp_servicegroup->member_map);
+						nm_gtree_unite(reject, temp_servicegroup->member_map);
 					else
 						prepend_object_to_objectlist(list, temp_servicegroup);
 				}
@@ -1926,7 +1927,7 @@ static int xodtemplate_expand_servicegroups(objectlist **list, bitmap *reject, c
 
 
 /* expands services (host name is not expanded) */
-static int xodtemplate_expand_services(objectlist **list, bitmap *reject_map, char *host_name, char *services, int _config_file, int _start_line)
+static int xodtemplate_expand_services(objectlist **list, GTree *reject_map, char *host_name, char *services, int _config_file, int _start_line)
 {
 	char *service_names = NULL;
 	char *temp_ptr = NULL;
@@ -2062,7 +2063,7 @@ static int xodtemplate_expand_services(objectlist **list, bitmap *reject_map, ch
 
 				/* add service to the list */
 				if (reject_item == TRUE)
-					bitmap_set(reject_map, temp_service->id);
+					g_tree_insert(reject_map, GINT_TO_POINTER(temp_service->id), GINT_TO_POINTER(1));
 				else
 					prepend_object_to_objectlist(list, temp_service);
 			}
@@ -2106,7 +2107,7 @@ static int xodtemplate_expand_services(objectlist **list, bitmap *reject_map, ch
 
 				/* add service to the list */
 				if (reject_item == TRUE)
-					bitmap_set(reject_map, temp_service->id);
+					g_tree_insert(reject_map, GINT_TO_POINTER(temp_service->id), GINT_TO_POINTER(1));
 				else
 					prepend_object_to_objectlist(list, temp_service);
 			}
@@ -2122,7 +2123,7 @@ static int xodtemplate_expand_services(objectlist **list, bitmap *reject_map, ch
 
 				/* add service to the list */
 				if (reject_item == TRUE)
-					bitmap_set(reject_map, temp_service->id);
+					g_tree_insert(reject_map, GINT_TO_POINTER(temp_service->id), GINT_TO_POINTER(1));
 				else
 					prepend_object_to_objectlist(list, temp_service);
 			}
@@ -2156,12 +2157,12 @@ static int xodtemplate_expand_services(objectlist **list, bitmap *reject_map, ch
  * If we have host_name/hostgroup_name and service_description, we do multiple
  * simple lookups and concatenate the results.
  */
-static int xodtemplate_create_service_list(objectlist **ret, bitmap *reject_map, char *host_name, char *hostgroup_name, char *servicegroup_name, char *service_description, int _config_file, int _start_line)
+static int xodtemplate_create_service_list(objectlist **ret, GTree *reject_map, char *host_name, char *hostgroup_name, char *servicegroup_name, char *service_description, int _config_file, int _start_line)
 {
 	objectlist *hlist = NULL, *hglist = NULL, *slist = NULL, *sglist = NULL;
 	objectlist *glist, *gnext, *list, *next; /* iterators */
 	xodtemplate_hostgroup fake_hg;
-	bitmap *in;
+	GTree *in;
 
 	/*
 	 * if we have a service_description, we need host_name
@@ -2177,8 +2178,8 @@ static int xodtemplate_create_service_list(objectlist **ret, bitmap *reject_map,
 		return ERROR;
 
 	/* we'll need these */
-	bitmap_clear(host_map);
-	if (!(in = bitmap_create(xodcount.services)))
+	host_map = nm_gtree_remove_all(host_map);
+	if (!(in = g_tree_new(nm_cmp_ptr)))
 		return ERROR;
 
 	/*
@@ -2196,9 +2197,9 @@ static int xodtemplate_create_service_list(objectlist **ret, bitmap *reject_map,
 			xodtemplate_service *s = (xodtemplate_service *)list->object_ptr;
 
 			/* rejected or already added */
-			if (bitmap_isset(in, s->id) || bitmap_isset(reject_map, s->id))
+			if (g_tree_lookup(in, GINT_TO_POINTER(s->id)) != NULL || g_tree_lookup(reject_map, GINT_TO_POINTER(s->id)) != NULL)
 				continue;
-			bitmap_set(in, s->id);
+			g_tree_insert(in, GINT_TO_POINTER(s->id), GINT_TO_POINTER(1));
 			if (prepend_object_to_objectlist(ret, s) != OK) {
 				free_objectlist(&gnext);
 				return ERROR;
@@ -2228,7 +2229,7 @@ static int xodtemplate_create_service_list(objectlist **ret, bitmap *reject_map,
 		if (prepend_object_to_objectlist(&hglist, &fake_hg) != OK) {
 			free_objectlist(&hlist);
 			free_objectlist(&hglist);
-			bitmap_destroy(in);
+			nm_gtree_destroy(in);
 			return ERROR;
 		}
 	}
@@ -2240,35 +2241,35 @@ static int xodtemplate_create_service_list(objectlist **ret, bitmap *reject_map,
 
 		for (hlist = hg->member_list; hlist; hlist = hlist->next) {
 			xodtemplate_host *h = (xodtemplate_host *)hlist->object_ptr;
-			if (bitmap_isset(host_map, h->id))
+			if (g_tree_lookup(host_map, GINT_TO_POINTER(h->id)) != NULL)
 				continue;
 
 			/* expand services and add them all, unless they're rejected */
 			slist = NULL;
 			if (xodtemplate_expand_services(&slist, reject_map, h->host_name, service_description, _config_file, _start_line) != OK) {
 				free_objectlist(&gnext);
-				bitmap_destroy(in);
+				nm_gtree_destroy(in);
 				return ERROR;
 			}
 			for (list = slist; list; list = next) {
 				xodtemplate_service *s = (xodtemplate_service *)list->object_ptr;
 				next = list->next;
 				free(list);
-				if (bitmap_isset(in, s->id) || bitmap_isset(reject_map, s->id))
+				if (g_tree_lookup(in, GINT_TO_POINTER(s->id)) != NULL || g_tree_lookup(reject_map, GINT_TO_POINTER(s->id)) != NULL)
 					continue;
-				bitmap_set(in, s->id);
+				g_tree_insert(in, GINT_TO_POINTER(s->id), GINT_TO_POINTER(1));
 				if (prepend_object_to_objectlist(ret, s) != OK) {
 					free_objectlist(&next);
 					free_objectlist(&gnext);
 					free_objectlist(&fake_hg.member_list);
-					bitmap_destroy(in);
+					nm_gtree_destroy(in);
 					return ERROR;
 				}
 			}
 		}
 	}
 
-	bitmap_destroy(in);
+	nm_gtree_destroy(in);
 	free_objectlist(&fake_hg.member_list);
 	return OK;
 }
@@ -2388,7 +2389,7 @@ static int xodtemplate_duplicate_services(void)
 		xodtemplate_hostgroup fake_hg;
 
 		/* clear for each round */
-		bitmap_clear(host_map);
+		host_map = nm_gtree_remove_all(host_map);
 
 		/* skip services that shouldn't be registered */
 		if (temp_service->register_object == FALSE)
@@ -2411,7 +2412,7 @@ static int xodtemplate_duplicate_services(void)
 			nm_free(temp_service->hostgroup_name);
 
 			/* empty result is only bad if allow_empty_hostgroup_assignment is off */
-			if (!glist && !bitmap_count_set_bits(host_map)) {
+			if (!glist && g_tree_nnodes(host_map) == 0) {
 				if (!allow_empty_hostgroup_assignment) {
 					nm_log(NSLOG_CONFIG_ERROR, "Error: Could not expand hostgroups and/or hosts specified in service (config file '%s', starting on line %d)\n", xodtemplate_config_file_name(temp_service->_config_file), temp_service->_start_line);
 					return ERROR;
@@ -2457,7 +2458,7 @@ static int xodtemplate_duplicate_services(void)
 				xodtemplate_host *h = (xodtemplate_host *)hlist->object_ptr;
 
 				/* ignore this host if it's rejected */
-				if (bitmap_isset(host_map, h->id))
+				if (g_tree_lookup(host_map, GINT_TO_POINTER(h->id)) != NULL)
 					continue;
 
 				/*
@@ -2466,7 +2467,7 @@ static int xodtemplate_duplicate_services(void)
 				 * where the same host is part of more than one of
 				 * them
 				 */
-				bitmap_set(host_map, h->id);
+				g_tree_insert(host_map, GINT_TO_POINTER(h->id), GUINT_TO_POINTER(1));
 
 				/* if this is the last duplication, use the existing entry */
 				if (!next && !hlist->next) {
@@ -2670,7 +2671,7 @@ static int xodtemplate_duplicate_objects(void)
 		if (temp_serviceescalation->register_object == FALSE)
 			continue;
 
-		bitmap_clear(service_map);
+		service_map = nm_gtree_remove_all(service_map);
 
 		master_servicelist = NULL;
 
@@ -2690,7 +2691,7 @@ static int xodtemplate_duplicate_objects(void)
 			next = list->next;
 			free(list);
 
-			if (bitmap_isset(service_map, s->id))
+			if (g_tree_lookup(service_map, GINT_TO_POINTER(s->id)) != NULL)
 				continue;
 
 			xodcount.serviceescalations++;
@@ -2761,7 +2762,7 @@ static int xodtemplate_duplicate_objects(void)
 		if (temp_serviceextinfo->service_description == NULL || (temp_serviceextinfo->hostgroup_name == NULL && temp_serviceextinfo->host_name == NULL))
 			continue;
 
-		bitmap_clear(service_map);
+		service_map = nm_gtree_remove_all(service_map);
 		master_servicelist = NULL;
 
 		/* get list of services */
@@ -2775,7 +2776,7 @@ static int xodtemplate_duplicate_objects(void)
 			xodtemplate_service *s = (xodtemplate_service *)list->object_ptr;
 			next = list->next;
 			free(list);
-			if (bitmap_isset(service_map, s->id))
+			if (g_tree_lookup(service_map, GINT_TO_POINTER(s->id)) != NULL)
 				continue;
 			xodtemplate_merge_service_extinfo_object(s, temp_serviceextinfo);
 		}
@@ -4206,16 +4207,16 @@ static int xodtemplate_resolve_objects(void)
  * guarantees that the first member is always the same as the one listed
  * in the struct definition.
  */
-static int _xodtemplate_add_group_member(objectlist **list, bitmap *in, bitmap *reject, void *obj)
+static int _xodtemplate_add_group_member(objectlist **list, GTree *in, GTree *reject, void *obj)
 {
 	xodtemplate_host *h = (xodtemplate_host *)obj;
 
 	if (!list || !obj)
 		return ERROR;
 
-	if (bitmap_isset(in, h->id) || bitmap_isset(reject, h->id))
+	if (g_tree_lookup(in, GINT_TO_POINTER(h->id)) != NULL || (reject != NULL && g_tree_lookup(reject, GINT_TO_POINTER(h->id)) != NULL))
 		return OK;
-	bitmap_set(in, h->id);
+	g_tree_insert(in, GINT_TO_POINTER(h->id), GINT_TO_POINTER(1));
 	return prepend_object_to_objectlist(list, obj);
 }
 #define xodtemplate_add_group_member(g, m) \
@@ -4903,8 +4904,8 @@ static int xodtemplate_recombobulate_contactgroups(void)
 	for (temp_contactgroup = xodtemplate_contactgroup_list; temp_contactgroup; temp_contactgroup = temp_contactgroup->next) {
 		objectlist *next, *list, *accepted = NULL;
 
-		if (!(temp_contactgroup->member_map = bitmap_create(xodcount.contacts))) {
-			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create contactgroup bitmap\n");
+		if (!(temp_contactgroup->member_map = g_tree_new(nm_cmp_ptr))) {
+			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create contactgroup lookup tree\n");
 			return ERROR;
 		}
 
@@ -4931,7 +4932,7 @@ static int xodtemplate_recombobulate_contactgroups(void)
 			continue;
 
 		/* we might need this */
-		if (!use_precached_objects && !(temp_contactgroup->reject_map = bitmap_create(xodcount.contacts))) {
+		if (!use_precached_objects && !(temp_contactgroup->reject_map = g_tree_new(nm_cmp_ptr))) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create reject map for contactgroup '%s'", temp_contactgroup->contactgroup_name);
 			return ERROR;
 		}
@@ -4986,7 +4987,7 @@ static int xodtemplate_recombobulate_contactgroups(void)
 				return ERROR;
 			}
 
-			if (!temp_contactgroup->member_map && !(temp_contactgroup->member_map = bitmap_create(xodcount.contacts))) {
+			if (!temp_contactgroup->member_map && !(temp_contactgroup->member_map = g_tree_new(nm_cmp_ptr))) {
 				nm_log(NSLOG_CONFIG_ERROR, "Error: Failed to create member map for contactgroup '%s'\n",
 				       temp_contactgroup->contactgroup_name);
 				return ERROR;
@@ -5003,7 +5004,7 @@ static int xodtemplate_recombobulate_contactgroups(void)
 		if (xodtemplate_recombobulate_contactgroup_subgroups(temp_contactgroup) != XOD_OK)
 			return ERROR;
 		/* rejects are no longer necessary */
-		bitmap_destroy(temp_contactgroup->reject_map);
+		nm_gtree_destroy(temp_contactgroup->reject_map);
 		/* make sure we don't recursively add subgroup members again */
 		free_objectlist(&temp_contactgroup->group_list);
 	}
@@ -5071,15 +5072,15 @@ static int xodtemplate_recombobulate_hostgroups(void)
 
 		/*
 		 * if the hostgroup has no accept or reject list and no group
-		 * members we don't need the bitmaps for it. bitmap_isset()
-		 * will return 0 when passed a NULL map, so we can safely use
+		 * members we don't need the lookup tree for it. g_tree_lookup()
+		 * will return NULL when passed a NULL map, so we can safely use
 		 * that to add any items from the object list later.
 		 */
 		if (temp_hostgroup->members == NULL && temp_hostgroup->hostgroup_members == NULL)
 			continue;
 
 		/* we'll need the member_map */
-		if (!(temp_hostgroup->member_map = bitmap_create(xodcount.hosts))) {
+		if (!(temp_hostgroup->member_map = g_tree_new(nm_cmp_ptr))) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create member map for hostgroup '%s'\n", temp_hostgroup->hostgroup_name);
 			return ERROR;
 		}
@@ -5105,14 +5106,14 @@ static int xodtemplate_recombobulate_hostgroups(void)
 			continue;
 
 		/* we might need this */
-		if (!use_precached_objects && !(temp_hostgroup->reject_map = bitmap_create(xodcount.hosts))) {
+		if (!use_precached_objects && !(temp_hostgroup->reject_map = g_tree_new(nm_cmp_ptr))) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create reject map for hostgroup '%s'\n", temp_hostgroup->hostgroup_name);
 			return ERROR;
 		}
 
 		/* get list of hosts in the hostgroup */
 		res = xodtemplate_expand_hosts(&accepted, temp_hostgroup->reject_map, temp_hostgroup->members, temp_hostgroup->_config_file, temp_hostgroup->_start_line);
-		if (res != OK || (!accepted && !bitmap_count_set_bits(temp_hostgroup->reject_map))) {
+		if (res != OK || (!accepted && g_tree_nnodes(temp_hostgroup->reject_map) == 0 )) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not expand members specified in hostgroup (config file '%s', starting on line %d)\n", xodtemplate_config_file_name(temp_hostgroup->_config_file), temp_hostgroup->_start_line);
 			return ERROR;
 		}
@@ -5163,8 +5164,8 @@ static int xodtemplate_recombobulate_hostgroups(void)
 				nm_free(hostgroup_names);
 				return ERROR;
 			}
-			if (!temp_hostgroup->member_map && !(temp_hostgroup->member_map = bitmap_create(xodcount.hosts))) {
-				nm_log(NSLOG_CONFIG_ERROR, "Failed to create bitmap to join host '%s' to group '%s'\n",
+			if (!temp_hostgroup->member_map && !(temp_hostgroup->member_map = g_tree_new(nm_cmp_ptr))) {
+				nm_log(NSLOG_CONFIG_ERROR, "Failed to create lookup tree to join host '%s' to group '%s'\n",
 				       temp_host->host_name, temp_hostgroup->hostgroup_name);
 				return ERROR;
 			}
@@ -5182,7 +5183,7 @@ static int xodtemplate_recombobulate_hostgroups(void)
 			return ERROR;
 		}
 		/* rejects are no longer necessary */
-		bitmap_destroy(temp_hostgroup->reject_map);
+		nm_gtree_destroy(temp_hostgroup->reject_map);
 		/* make sure we don't recursively add subgroup members again */
 		free_objectlist(&temp_hostgroup->group_list);
 	}
@@ -5256,7 +5257,7 @@ static int xodtemplate_recombobulate_servicegroups(void)
 			continue;
 
 		/* we'll need the member map */
-		if (!(temp_servicegroup->member_map = bitmap_create(xodcount.services))) {
+		if (!(temp_servicegroup->member_map = g_tree_new(nm_cmp_ptr))) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create member map for servicegroup '%s'\n", temp_servicegroup->servicegroup_name);
 			return ERROR;
 		}
@@ -5287,14 +5288,14 @@ static int xodtemplate_recombobulate_servicegroups(void)
 			continue;
 
 		/* we might need this */
-		if (!use_precached_objects && !(temp_servicegroup->reject_map = bitmap_create(xodcount.services))) {
+		if (!use_precached_objects && !(temp_servicegroup->reject_map = g_tree_new(nm_cmp_ptr))) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not create reject map for hostgroup '%s'\n", temp_servicegroup->servicegroup_name);
 			return ERROR;
 		}
 
 		/* get list of service members in the servicegroup */
 		res = xodtemplate_expand_services(&accepted, temp_servicegroup->reject_map, NULL, temp_servicegroup->members, temp_servicegroup->_config_file, temp_servicegroup->_start_line);
-		if (res != OK || (!accepted && !bitmap_count_set_bits(temp_servicegroup->reject_map))) {
+		if (res != OK || (!accepted && g_tree_nnodes(temp_servicegroup->reject_map) == 0 )) {
 			nm_log(NSLOG_CONFIG_ERROR, "Error: Could not expand members specified in servicegroup '%s' (config file '%s', starting at line %d)\n", temp_servicegroup->servicegroup_name, xodtemplate_config_file_name(temp_servicegroup->_config_file), temp_servicegroup->_start_line);
 			return ERROR;
 		}
@@ -5347,7 +5348,7 @@ static int xodtemplate_recombobulate_servicegroups(void)
 				return ERROR;
 			}
 
-			if (!temp_servicegroup->member_map && !(temp_servicegroup->member_map = bitmap_create(xodcount.services))) {
+			if (!temp_servicegroup->member_map && !(temp_servicegroup->member_map = g_tree_new(nm_cmp_ptr))) {
 				nm_log(NSLOG_CONFIG_ERROR, "Error: Failed to create member map for service group %s\n", temp_servicegroup->servicegroup_name);
 				return ERROR;
 			}
@@ -5365,7 +5366,7 @@ static int xodtemplate_recombobulate_servicegroups(void)
 			return ERROR;
 		}
 		/* rejects are no longer necessary */
-		bitmap_destroy(temp_servicegroup->reject_map);
+		nm_gtree_destroy(temp_servicegroup->reject_map);
 		/* make sure we don't recursively add subgroup members again */
 		free_objectlist(&temp_servicegroup->group_list);
 	}
@@ -6087,7 +6088,7 @@ static int xodtemplate_register_service_relations(void *srv, void *discard)
 		} else {
 			/* Multiple parents, so let's do this the hard way */
 			objectlist *list = NULL, *next;
-			bitmap_clear(service_map);
+			service_map = nm_gtree_remove_all(service_map);
 			if (xodtemplate_expand_services(&list, service_map, NULL, this_service->parents, this_service->_config_file, this_service->_start_line) != OK) {
 				nm_log(NSLOG_CONFIG_ERROR, "Error: Failed to expand service parents (config file '%s', starting at line %d)\n",
 				       xodtemplate_config_file_name(this_service->_config_file),
@@ -6310,8 +6311,8 @@ static int xodtemplate_register_and_destroy_servicedependency(void *sd_)
 	}
 
 	parents = children = NULL;
-	bitmap_clear(parent_map);
-	bitmap_clear(service_map);
+	parent_map = nm_gtree_remove_all(parent_map);
+	service_map = nm_gtree_remove_all(service_map);
 
 	/* create the two object lists */
 	if (!children_first) {
@@ -6352,10 +6353,10 @@ static int xodtemplate_register_and_destroy_servicedependency(void *sd_)
 		pnext = plist->next;
 		free(plist); /* free it as we go along */
 
-		if (bitmap_isset(parent_map, p->id))
+		if (g_tree_lookup(parent_map, GINT_TO_POINTER(p->id)) != NULL)
 			continue;
-		bitmap_set(parent_map, p->id);
-		bitmap_clear(service_map);
+		g_tree_insert(parent_map, GINT_TO_POINTER(p->id), NULL);
+		service_map = nm_gtree_remove_all(service_map);
 
 		/*
 		 * if this is a same-host dependency, we must expand
@@ -6373,9 +6374,9 @@ static int xodtemplate_register_and_destroy_servicedependency(void *sd_)
 		}
 		for (clist = children; clist; clist = clist->next) {
 			xodtemplate_service *c = (xodtemplate_service *)clist->object_ptr;
-			if (bitmap_isset(service_map, c->id))
+			if (g_tree_lookup(service_map, GINT_TO_POINTER(c->id)) != NULL)
 				continue;
-			bitmap_set(service_map, c->id);
+			g_tree_insert(service_map, GINT_TO_POINTER(c->id), NULL);
 
 			/* now register, but flip the states again if necessary */
 			if (children_first) {
@@ -6558,9 +6559,9 @@ static int xodtemplate_register_objects(void)
 	 * them as we go along, since all dupes are at the head of the list
 	 */
 	if (xodtemplate_servicedependency_list) {
-		parent_map = bitmap_create(xodcount.services);
+		parent_map = g_tree_new(nm_cmp_ptr);
 		if (!parent_map) {
-			nm_log(NSLOG_CONFIG_ERROR, "Error: Failed to create parent bitmap for service dependencies\n");
+			nm_log(NSLOG_CONFIG_ERROR, "Error: Failed to create parent lookup tree for service dependencies\n");
 			return ERROR;
 		}
 		for (sd = xodtemplate_servicedependency_list; sd; sd = next_sd) {
@@ -6568,7 +6569,7 @@ static int xodtemplate_register_objects(void)
 			if (xodtemplate_register_and_destroy_servicedependency(sd) == ERROR)
 				return ERROR;
 		}
-		bitmap_destroy(parent_map);
+		nm_gtree_destroy(parent_map);
 		parent_map = NULL;
 	}
 	timing_point("%u unique / %u total servicedependencies registered\n",
@@ -8684,10 +8685,10 @@ int xodtemplate_read_config_data(const char *main_config_file)
 	}
 
 	/* do the meat and potatoes stuff... */
-	host_map = bitmap_create(xodcount.hosts);
-	contact_map = bitmap_create(xodcount.contacts);
+	host_map = g_tree_new(nm_cmp_ptr);
+	contact_map = g_tree_new(nm_cmp_ptr);
 	if (!host_map || !contact_map) {
-		nm_log(NSLOG_RUNTIME_ERROR, "Error: Failed to create bitmaps for resolving objects\n");
+		nm_log(NSLOG_RUNTIME_ERROR, "Error: Failed to create lookup tree for resolving objects\n");
 		return ERROR;
 	}
 
@@ -8709,7 +8710,7 @@ int xodtemplate_read_config_data(const char *main_config_file)
 	}
 
 	/* now we have an accurate service count */
-	service_map = bitmap_create(xodcount.services);
+	service_map = g_tree_new(nm_cmp_ptr);
 	if (!service_map) {
 		nm_log(NSLOG_CONFIG_ERROR, "Failed to create service map\n");
 		return ERROR;
@@ -8737,9 +8738,9 @@ int xodtemplate_read_config_data(const char *main_config_file)
 	/* cleanup */
 	xodtemplate_free_memory();
 
-	bitmap_destroy(contact_map);
-	bitmap_destroy(host_map);
-	bitmap_destroy(service_map);
+	nm_gtree_destroy(contact_map);
+	nm_gtree_destroy(host_map);
+	nm_gtree_destroy(service_map);
 
 	return result;
 }

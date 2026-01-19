@@ -58,5 +58,10 @@ void get_time_breakdown(unsigned long raw_time, int *days, int *hours,
                                int *minutes, int *seconds);
 gint my_strsorter(gconstpointer a, gconstpointer b, gpointer data);
 
+void nm_gtree_unite(GTree *, GTree *);
+GTree *nm_gtree_remove_all(GTree *);
+gint nm_cmp_ptr(gconstpointer a, gconstpointer b);
+void nm_gtree_destroy(GTree *);
+
 NAGIOS_END_DECL
 #endif

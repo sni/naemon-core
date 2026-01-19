@@ -575,3 +575,31 @@ gint my_strsorter(gconstpointer a, gconstpointer b, gpointer data)
 {
 	return (g_strcmp0(a, b));
 }
+
+static gboolean nm_gtree_unite_cb(gpointer key, gpointer value, gpointer user_data) {
+    GTree *dest = user_data;
+    g_tree_replace(dest, key, value);
+    return FALSE;
+}
+
+void nm_gtree_unite(GTree *dest, GTree *src) {
+	g_tree_foreach(src, nm_gtree_unite_cb, dest);
+}
+
+GTree *nm_gtree_remove_all(GTree *dest) {
+	nm_gtree_destroy(dest);
+	dest = g_tree_new(nm_cmp_ptr);
+
+	return dest;
+}
+
+gint nm_cmp_ptr(gconstpointer a, gconstpointer b) {
+	if (a < b) return -1;
+	if (a > b) return 1;
+	return 0;
+}
+
+void nm_gtree_destroy(GTree *tree) {
+	if (tree)
+		g_tree_destroy(tree);
+}

@@ -170,8 +170,8 @@ typedef struct xodtemplate_contactgroup_struct {
     char      *contactgroup_members;
 	objectlist *member_list;
 	objectlist *group_list;
-	bitmap *member_map;
-	bitmap *reject_map;
+	GTree      *member_map;
+	GTree      *reject_map;
 	int loop_status;
 
     char have_members;
@@ -308,8 +308,8 @@ typedef struct xodtemplate_hostgroup_struct {
     char      *action_url;
 	objectlist *member_list;
 	objectlist *group_list;
-	bitmap *member_map;
-	bitmap *reject_map;
+	GTree      *member_map;
+	GTree      *reject_map;
 	int loop_status;
 
     char have_members;
@@ -446,8 +446,8 @@ typedef struct xodtemplate_servicegroup_struct {
     char      *action_url;
 	objectlist *member_list;
 	objectlist *group_list;
-	bitmap *member_map;
-	bitmap *reject_map;
+	GTree      *member_map;
+	GTree      *reject_map;
 	int loop_status;
 
     char have_members;
