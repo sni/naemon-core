@@ -108,6 +108,15 @@ int xrddefault_save_state_information(void)
 		return ERROR;
 	}
 
+	/* use a 1MB buffer to speed up writes */
+	if(setvbuf(fp, NULL, _IOFBF, 1024*1024) != 0) {
+		nm_log(NSLOG_RUNTIME_ERROR, "Error: Unable to set buffer on retention file '%s': %s\n", tmp_file, strerror(errno));
+		fclose(fp);
+		unlink(tmp_file);
+		nm_free(tmp_file);
+		return ERROR;
+	}
+
 	/* what attributes should be masked out? */
 	/* NOTE: host/service/contact-specific values may be added in the future, but for now we only have global masks */
 	process_host_attribute_mask = retained_process_host_attribute_mask;

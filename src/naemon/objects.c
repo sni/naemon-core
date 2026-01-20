@@ -50,6 +50,15 @@ int fcache_objects(char *cache_file)
 		return ERROR;
 	}
 
+	/* use a 1MB buffer to speed up writes */
+	if(setvbuf(fp, NULL, _IOFBF, 1024*1024) != 0) {
+		nm_log(NSLOG_RUNTIME_ERROR, "Error: Unable to set buffer on object cache file '%s': %s\n", tmp_file, strerror(errno));
+		fclose(fp);
+		unlink(tmp_file);
+		nm_free(tmp_file);
+		return ERROR;
+	}
+
 	/* write header to cache file */
 	fprintf(fp, "########################################\n");
 	fprintf(fp, "#       NAGIOS OBJECT CACHE FILE\n");
