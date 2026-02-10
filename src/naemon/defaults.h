@@ -17,7 +17,6 @@
 #define DEFAULT_NSR_LOGGING					1	/* log notification suppression reasons? 1=yes, 0=no */
 #define DEFAULT_INTER_CHECK_DELAY				5.0	/* seconds between initial service check scheduling */
 #define DEFAULT_INTERLEAVE_FACTOR      				1       /* default interleave to use when scheduling checks */
-#define DEFAULT_RETRY_INTERVAL  				30	/* services are retried in 30 seconds if they're not OK */
 #define DEFAULT_CHECK_REAPER_INTERVAL				10	/* interval in seconds to reap host and service check results */
 #define DEFAULT_MAX_REAPER_TIME                 		30      /* maximum number of seconds to spend reaping service checks before we break out for a while */
 #define DEFAULT_MAX_CHECK_RESULT_AGE				3600    /* maximum number of seconds that a check result file is considered to be valid */
@@ -98,6 +97,10 @@
 #define DEFAULT_HOST_PERFDATA_PROCESS_EMPTY_RESULTS 1
 #define DEFAULT_SERVICE_PERFDATA_PROCESS_EMPTY_RESULTS 1
 
+#define DEFAULT_HOURLY_VALUE                    1
+#define DEFAULT_CHECK_INTERVAL                  5.0
+#define DEFAULT_RETRY_INTERVAL                  1.0
+#define DEFAULT_NOTIFICATION_INTERVAL           30.0
 
 /* Legacy way to find out default locations - do not go near these, as they
  * cause configure options to trigger ABI breaks. At some point, they'll become

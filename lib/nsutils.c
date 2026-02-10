@@ -135,3 +135,10 @@ void close_standard_fds(void)
 
 	return;
 }
+
+/* format float as string without trailing zeros */
+const char* float_str(double num) {
+	if (num == (int)num)
+		return (char *)mkstr("%d", (int)num);
+	return (char *)mkstr("%f", num);
+}

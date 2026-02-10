@@ -166,6 +166,11 @@ extern int str2timeval(char *str, struct timeval *tv);
  */
 void close_standard_fds(void);
 
+/**
+ * return float as string without trailing zeros
+ */
+const char* float_str(double num);
+
 NAGIOS_END_DECL
 
 /** @} */

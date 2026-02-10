@@ -305,8 +305,10 @@ void fcache_contact(FILE *fp, const contact *temp_contact)
 		fprintf(fp, "\tservice_notification_period\t%s\n", temp_contact->service_notification_period);
 	if (temp_contact->host_notification_period)
 		fprintf(fp, "\thost_notification_period\t%s\n", temp_contact->host_notification_period);
-	fprintf(fp, "\tservice_notification_options\t%s\n", opts2str(temp_contact->service_notification_options, service_flag_map, 'r'));
-	fprintf(fp, "\thost_notification_options\t%s\n", opts2str(temp_contact->host_notification_options, host_flag_map, 'r'));
+	if(temp_contact->service_notification_options && (int)temp_contact->service_notification_options != OPT_ALL)
+		fprintf(fp, "\tservice_notification_options\t%s\n", opts2str(temp_contact->service_notification_options, service_flag_map, 'r'));
+	if(temp_contact->host_notification_options && (int)temp_contact->host_notification_options != OPT_ALL)
+		fprintf(fp, "\thost_notification_options\t%s\n", opts2str(temp_contact->host_notification_options, host_flag_map, 'r'));
 	if (temp_contact->service_notification_commands) {
 		fprintf(fp, "\tservice_notification_commands\t");
 		for (list = temp_contact->service_notification_commands; list; list = list->next) {
@@ -327,12 +329,18 @@ void fcache_contact(FILE *fp, const contact *temp_contact)
 		if (temp_contact->address[x])
 			fprintf(fp, "\taddress%d\t%s\n", x + 1, temp_contact->address[x]);
 	}
-	fprintf(fp, "\tminimum_value\t%u\n", temp_contact->minimum_value);
-	fprintf(fp, "\thost_notifications_enabled\t%d\n", temp_contact->host_notifications_enabled);
-	fprintf(fp, "\tservice_notifications_enabled\t%d\n", temp_contact->service_notifications_enabled);
-	fprintf(fp, "\tcan_submit_commands\t%d\n", temp_contact->can_submit_commands);
-	fprintf(fp, "\tretain_status_information\t%d\n", temp_contact->retain_status_information);
-	fprintf(fp, "\tretain_nonstatus_information\t%d\n", temp_contact->retain_nonstatus_information);
+	if(temp_contact->minimum_value != 1)
+		fprintf(fp, "\tminimum_value\t%u\n", temp_contact->minimum_value);
+	if(!temp_contact->host_notifications_enabled)
+		fprintf(fp, "\thost_notifications_enabled\t%d\n", temp_contact->host_notifications_enabled);
+	if(!temp_contact->service_notifications_enabled)
+		fprintf(fp, "\tservice_notifications_enabled\t%d\n", temp_contact->service_notifications_enabled);
+	if(!temp_contact->can_submit_commands)
+		fprintf(fp, "\tcan_submit_commands\t%d\n", temp_contact->can_submit_commands);
+	if(!temp_contact->retain_status_information)
+		fprintf(fp, "\tretain_status_information\t%d\n", temp_contact->retain_status_information);
+	if(!temp_contact->retain_nonstatus_information)
+		fprintf(fp, "\tretain_nonstatus_information\t%d\n", temp_contact->retain_nonstatus_information);
 
 	/* custom variables */
 	fcache_customvars(fp, temp_contact->custom_variables);

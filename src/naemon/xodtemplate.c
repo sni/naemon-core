@@ -775,11 +775,11 @@ static int xodtemplate_begin_object_definition(char *input, int cfgfile, int sta
 	if (!strcmp(input, "service")) {
 		xodtemplate_current_object_type = XODTEMPLATE_SERVICE;
 		xod_begin_def(service);
-		new_service->hourly_value = 1;
+		new_service->hourly_value = DEFAULT_HOURLY_VALUE;
 		new_service->initial_state = STATE_OK;
 		new_service->max_check_attempts = -2;
-		new_service->check_interval = 5.0;
-		new_service->retry_interval = 1.0;
+		new_service->check_interval = DEFAULT_CHECK_INTERVAL;
+		new_service->retry_interval = DEFAULT_RETRY_INTERVAL;
 		new_service->active_checks_enabled = TRUE;
 		new_service->passive_checks_enabled = TRUE;
 		new_service->obsess = TRUE;
@@ -787,19 +787,27 @@ static int xodtemplate_begin_object_definition(char *input, int cfgfile, int sta
 		new_service->flap_detection_enabled = TRUE;
 		new_service->flap_detection_options = OPT_ALL;
 		new_service->notifications_enabled = TRUE;
-		new_service->notification_interval = 30.0;
+		new_service->notification_interval = DEFAULT_NOTIFICATION_INTERVAL;
 		new_service->process_perf_data = TRUE;
 		new_service->retain_status_information = TRUE;
 		new_service->retain_nonstatus_information = TRUE;
+
+		if(use_precached_objects) {
+			// since default options have been removed from the precached objects, we need to set them here
+			// to not get inheritance wrong
+			new_service->have_check_period = TRUE;
+			new_service->have_notification_period = TRUE;
+			new_service->have_notification_interval = TRUE;
+		}
 
 		/* true service, so is not from host group */
 		new_service->is_from_hostgroup = 0;
 	} else if (!strcmp(input, "host")) {
 		xodtemplate_current_object_type = XODTEMPLATE_HOST;
 		xod_begin_def(host);
-		new_host->hourly_value = 1;
-		new_host->check_interval = 5.0;
-		new_host->retry_interval = 1.0;
+		new_host->hourly_value = DEFAULT_HOURLY_VALUE;
+		new_host->check_interval = DEFAULT_CHECK_INTERVAL;
+		new_host->retry_interval = DEFAULT_RETRY_INTERVAL;
 		new_host->active_checks_enabled = TRUE;
 		new_host->passive_checks_enabled = TRUE;
 		new_host->obsess = TRUE;
@@ -808,7 +816,7 @@ static int xodtemplate_begin_object_definition(char *input, int cfgfile, int sta
 		new_host->flap_detection_enabled = TRUE;
 		new_host->flap_detection_options = OPT_ALL;
 		new_host->notifications_enabled = TRUE;
-		new_host->notification_interval = 30.0;
+		new_host->notification_interval = DEFAULT_NOTIFICATION_INTERVAL;
 		new_host->process_perf_data = TRUE;
 		new_host->x_2d = -1;
 		new_host->y_2d = -1;

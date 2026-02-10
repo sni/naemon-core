@@ -538,33 +538,49 @@ void fcache_host(FILE *fp, const host *temp_host)
 	fcache_contactgrouplist(fp, "\tcontact_groups\t", temp_host->contact_groups);
 	if (temp_host->notification_period)
 		fprintf(fp, "\tnotification_period\t%s\n", temp_host->notification_period);
-	fprintf(fp, "\tinitial_state\t");
 	if (temp_host->initial_state == STATE_DOWN)
-		fprintf(fp, "d\n");
+		fprintf(fp, "\tinitial_state\td\n");
 	else if (temp_host->initial_state == STATE_UNREACHABLE)
-		fprintf(fp, "u\n");
-	else
-		fprintf(fp, "o\n");
-	fprintf(fp, "\thourly_value\t%u\n", temp_host->hourly_value);
-	fprintf(fp, "\tcheck_interval\t%f\n", temp_host->check_interval);
-	fprintf(fp, "\tretry_interval\t%f\n", temp_host->retry_interval);
+		fprintf(fp, "\tinitial_state\tu\n");
+	if(temp_host->hourly_value != DEFAULT_HOURLY_VALUE)
+		fprintf(fp, "\thourly_value\t%u\n", temp_host->hourly_value);
+	if(temp_host->check_interval != DEFAULT_CHECK_INTERVAL)
+		fprintf(fp, "\tcheck_interval\t%s\n", float_str(temp_host->check_interval));
+	if(temp_host->retry_interval != DEFAULT_RETRY_INTERVAL)
+		fprintf(fp, "\tretry_interval\t%s\n", float_str(temp_host->retry_interval));
 	fprintf(fp, "\tmax_check_attempts\t%d\n", temp_host->max_attempts);
-	fprintf(fp, "\tactive_checks_enabled\t%d\n", temp_host->checks_enabled);
-	fprintf(fp, "\tpassive_checks_enabled\t%d\n", temp_host->accept_passive_checks);
-	fprintf(fp, "\tobsess\t%d\n", temp_host->obsess);
-	fprintf(fp, "\tevent_handler_enabled\t%d\n", temp_host->event_handler_enabled);
-	fprintf(fp, "\tlow_flap_threshold\t%f\n", temp_host->low_flap_threshold);
-	fprintf(fp, "\thigh_flap_threshold\t%f\n", temp_host->high_flap_threshold);
-	fprintf(fp, "\tflap_detection_enabled\t%d\n", temp_host->flap_detection_enabled);
-	fprintf(fp, "\tflap_detection_options\t%s\n", opts2str(temp_host->flap_detection_options, host_flag_map, 'o'));
-	fprintf(fp, "\tfreshness_threshold\t%d\n", temp_host->freshness_threshold);
-	fprintf(fp, "\tcheck_freshness\t%d\n", temp_host->check_freshness);
-	fprintf(fp, "\tnotification_options\t%s\n", opts2str(temp_host->notification_options, host_flag_map, 'r'));
-	fprintf(fp, "\tnotifications_enabled\t%d\n", temp_host->notifications_enabled);
-	fprintf(fp, "\tnotification_interval\t%f\n", temp_host->notification_interval);
-	fprintf(fp, "\tfirst_notification_delay\t%f\n", temp_host->first_notification_delay);
-	fprintf(fp, "\tstalking_options\t%s\n", opts2str(temp_host->stalking_options, host_flag_map, 'o'));
-	fprintf(fp, "\tprocess_perf_data\t%d\n", temp_host->process_performance_data);
+	if(!temp_host->checks_enabled)
+		fprintf(fp, "\tactive_checks_enabled\t%d\n", temp_host->checks_enabled);
+	if(!temp_host->accept_passive_checks)
+		fprintf(fp, "\tpassive_checks_enabled\t%d\n", temp_host->accept_passive_checks);
+	if(!temp_host->obsess)
+		fprintf(fp, "\tobsess\t%d\n", temp_host->obsess);
+	if(!temp_host->event_handler_enabled)
+		fprintf(fp, "\tevent_handler_enabled\t%d\n", temp_host->event_handler_enabled);
+	if(temp_host->low_flap_threshold)
+		fprintf(fp, "\tlow_flap_threshold\t%s\n", float_str(temp_host->low_flap_threshold));
+	if(temp_host->high_flap_threshold)
+		fprintf(fp, "\thigh_flap_threshold\t%s\n", float_str(temp_host->high_flap_threshold));
+	if(!temp_host->flap_detection_enabled)
+		fprintf(fp, "\tflap_detection_enabled\t%d\n", temp_host->flap_detection_enabled);
+	if(temp_host->flap_detection_options && (int)temp_host->flap_detection_options != OPT_ALL)
+		fprintf(fp, "\tflap_detection_options\t%s\n", opts2str(temp_host->flap_detection_options, host_flag_map, 'o'));
+	if(temp_host->freshness_threshold)
+		fprintf(fp, "\tfreshness_threshold\t%d\n", temp_host->freshness_threshold);
+	if(temp_host->check_freshness)
+		fprintf(fp, "\tcheck_freshness\t%d\n", temp_host->check_freshness);
+	if(temp_host->notification_options && (int)temp_host->notification_options != OPT_ALL)
+		fprintf(fp, "\tnotification_options\t%s\n", opts2str(temp_host->notification_options, host_flag_map, 'r'));
+	if(!temp_host->notifications_enabled)
+		fprintf(fp, "\tnotifications_enabled\t%d\n", temp_host->notifications_enabled);
+	if(temp_host->notification_interval != DEFAULT_NOTIFICATION_INTERVAL)
+		fprintf(fp, "\tnotification_interval\t%s\n", float_str(temp_host->notification_interval));
+	if(temp_host->first_notification_delay)
+		fprintf(fp, "\tfirst_notification_delay\t%s\n", float_str(temp_host->first_notification_delay));
+	if(temp_host->stalking_options && (int)temp_host->stalking_options != OPT_ALL)
+		fprintf(fp, "\tstalking_options\t%s\n", opts2str(temp_host->stalking_options, host_flag_map, 'o'));
+	if(!temp_host->process_performance_data)
+		fprintf(fp, "\tprocess_perf_data\t%d\n", temp_host->process_performance_data);
 	if (temp_host->icon_image)
 		fprintf(fp, "\ticon_image\t%s\n", temp_host->icon_image);
 	if (temp_host->icon_image_alt)
@@ -583,8 +599,10 @@ void fcache_host(FILE *fp, const host *temp_host)
 		fprintf(fp, "\tnotes_url\t%s\n", temp_host->notes_url);
 	if (temp_host->action_url)
 		fprintf(fp, "\taction_url\t%s\n", temp_host->action_url);
-	fprintf(fp, "\tretain_status_information\t%d\n", temp_host->retain_status_information);
-	fprintf(fp, "\tretain_nonstatus_information\t%d\n", temp_host->retain_nonstatus_information);
+	if(!temp_host->retain_status_information)
+		fprintf(fp, "\tretain_status_information\t%d\n", temp_host->retain_status_information);
+	if(!temp_host->retain_nonstatus_information)
+		fprintf(fp, "\tretain_nonstatus_information\t%d\n", temp_host->retain_nonstatus_information);
 
 	/* custom variables */
 	fcache_customvars(fp, temp_host->custom_variables);

@@ -475,36 +475,53 @@ void fcache_service(FILE *fp, const service *temp_service)
 	fcache_contactgrouplist(fp, "\tcontact_groups\t", temp_service->contact_groups);
 	if (temp_service->notification_period)
 		fprintf(fp, "\tnotification_period\t%s\n", temp_service->notification_period);
-	fprintf(fp, "\tinitial_state\t");
 	if (temp_service->initial_state == STATE_WARNING)
-		fprintf(fp, "w\n");
+		fprintf(fp, "\tinitial_state\tw\n");
 	else if (temp_service->initial_state == STATE_UNKNOWN)
-		fprintf(fp, "u\n");
+		fprintf(fp, "\tinitial_state\tu\n");
 	else if (temp_service->initial_state == STATE_CRITICAL)
-		fprintf(fp, "c\n");
-	else
-		fprintf(fp, "o\n");
-	fprintf(fp, "\thourly_value\t%u\n", temp_service->hourly_value);
-	fprintf(fp, "\tcheck_interval\t%f\n", temp_service->check_interval);
-	fprintf(fp, "\tretry_interval\t%f\n", temp_service->retry_interval);
+		fprintf(fp, "\tinitial_state\tc\n");
+	if(temp_service->hourly_value != DEFAULT_HOURLY_VALUE)
+		fprintf(fp, "\thourly_value\t%u\n", temp_service->hourly_value);
+	if(temp_service->check_interval != DEFAULT_CHECK_INTERVAL)
+		fprintf(fp, "\tcheck_interval\t%s\n", float_str(temp_service->check_interval));
+	if(temp_service->retry_interval != DEFAULT_RETRY_INTERVAL)
+		fprintf(fp, "\tretry_interval\t%s\n", float_str(temp_service->retry_interval));
 	fprintf(fp, "\tmax_check_attempts\t%d\n", temp_service->max_attempts);
-	fprintf(fp, "\tis_volatile\t%d\n", temp_service->is_volatile);
-	fprintf(fp, "\tactive_checks_enabled\t%d\n", temp_service->checks_enabled);
-	fprintf(fp, "\tpassive_checks_enabled\t%d\n", temp_service->accept_passive_checks);
-	fprintf(fp, "\tobsess\t%d\n", temp_service->obsess);
-	fprintf(fp, "\tevent_handler_enabled\t%d\n", temp_service->event_handler_enabled);
-	fprintf(fp, "\tlow_flap_threshold\t%f\n", temp_service->low_flap_threshold);
-	fprintf(fp, "\thigh_flap_threshold\t%f\n", temp_service->high_flap_threshold);
-	fprintf(fp, "\tflap_detection_enabled\t%d\n", temp_service->flap_detection_enabled);
-	fprintf(fp, "\tflap_detection_options\t%s\n", opts2str(temp_service->flap_detection_options, service_flag_map, 'o'));
-	fprintf(fp, "\tfreshness_threshold\t%d\n", temp_service->freshness_threshold);
-	fprintf(fp, "\tcheck_freshness\t%d\n", temp_service->check_freshness);
-	fprintf(fp, "\tnotification_options\t%s\n", opts2str(temp_service->notification_options, service_flag_map, 'r'));
-	fprintf(fp, "\tnotifications_enabled\t%d\n", temp_service->notifications_enabled);
-	fprintf(fp, "\tnotification_interval\t%f\n", temp_service->notification_interval);
-	fprintf(fp, "\tfirst_notification_delay\t%f\n", temp_service->first_notification_delay);
-	fprintf(fp, "\tstalking_options\t%s\n", opts2str(temp_service->stalking_options, service_flag_map, 'o'));
-	fprintf(fp, "\tprocess_perf_data\t%d\n", temp_service->process_performance_data);
+	if(temp_service->is_volatile)
+		fprintf(fp, "\tis_volatile\t%d\n", temp_service->is_volatile);
+	if(!temp_service->checks_enabled)
+		fprintf(fp, "\tactive_checks_enabled\t%d\n", temp_service->checks_enabled);
+	if(!temp_service->accept_passive_checks)
+		fprintf(fp, "\tpassive_checks_enabled\t%d\n", temp_service->accept_passive_checks);
+	if(!temp_service->obsess)
+		fprintf(fp, "\tobsess\t%d\n", temp_service->obsess);
+	if(!temp_service->event_handler_enabled)
+		fprintf(fp, "\tevent_handler_enabled\t%d\n", temp_service->event_handler_enabled);
+	if(temp_service->low_flap_threshold)
+		fprintf(fp, "\tlow_flap_threshold\t%s\n", float_str(temp_service->low_flap_threshold));
+	if(temp_service->high_flap_threshold)
+		fprintf(fp, "\thigh_flap_threshold\t%s\n", float_str(temp_service->high_flap_threshold));
+	if(!temp_service->flap_detection_enabled)
+		fprintf(fp, "\tflap_detection_enabled\t%d\n", temp_service->flap_detection_enabled);
+	if(temp_service->flap_detection_options && (int)temp_service->flap_detection_options != OPT_ALL)
+		fprintf(fp, "\tflap_detection_options\t%s\n", opts2str(temp_service->flap_detection_options, service_flag_map, 'o'));
+	if(temp_service->freshness_threshold)
+		fprintf(fp, "\tfreshness_threshold\t%d\n", temp_service->freshness_threshold);
+	if(temp_service->check_freshness)
+		fprintf(fp, "\tcheck_freshness\t%d\n", temp_service->check_freshness);
+	if(temp_service->notification_options && (int)temp_service->notification_options != OPT_ALL)
+		fprintf(fp, "\tnotification_options\t%s\n", opts2str(temp_service->notification_options, service_flag_map, 'r'));
+	if(!temp_service->notifications_enabled)
+		fprintf(fp, "\tnotifications_enabled\t%d\n", temp_service->notifications_enabled);
+	if(temp_service->notification_interval != DEFAULT_NOTIFICATION_INTERVAL)
+		fprintf(fp, "\tnotification_interval\t%s\n", float_str(temp_service->notification_interval));
+	if(temp_service->first_notification_delay)
+		fprintf(fp, "\tfirst_notification_delay\t%s\n", float_str(temp_service->first_notification_delay));
+	if(temp_service->stalking_options && (int)temp_service->stalking_options != OPT_ALL)
+		fprintf(fp, "\tstalking_options\t%s\n", opts2str(temp_service->stalking_options, service_flag_map, 'o'));
+	if(!temp_service->process_performance_data)
+		fprintf(fp, "\tprocess_perf_data\t%d\n", temp_service->process_performance_data);
 	if (temp_service->icon_image)
 		fprintf(fp, "\ticon_image\t%s\n", temp_service->icon_image);
 	if (temp_service->icon_image_alt)
@@ -515,8 +532,10 @@ void fcache_service(FILE *fp, const service *temp_service)
 		fprintf(fp, "\tnotes_url\t%s\n", temp_service->notes_url);
 	if (temp_service->action_url)
 		fprintf(fp, "\taction_url\t%s\n", temp_service->action_url);
-	fprintf(fp, "\tretain_status_information\t%d\n", temp_service->retain_status_information);
-	fprintf(fp, "\tretain_nonstatus_information\t%d\n", temp_service->retain_nonstatus_information);
+	if(!temp_service->retain_status_information)
+		fprintf(fp, "\tretain_status_information\t%d\n", temp_service->retain_status_information);
+	if(!temp_service->retain_nonstatus_information)
+		fprintf(fp, "\tretain_nonstatus_information\t%d\n", temp_service->retain_nonstatus_information);
 
 	/* custom variables */
 	fcache_customvars(fp, temp_service->custom_variables);
